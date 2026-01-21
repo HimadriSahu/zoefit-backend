@@ -76,6 +76,12 @@ def api_root_view(request):
                 'description': 'Update user profile',
                 'authentication': 'Required'
             },
+            'forgot_password': {
+                'url': '/api/auth/forgot-password/',
+                'method': 'POST',
+                'description': 'Request password reset email',
+                'authentication': 'Not required'
+            },
             'change_password': {
                 'url': '/api/auth/change-password/',
                 'method': 'POST',
@@ -218,6 +224,49 @@ def logout_view(request):
             'error': 'An error occurred during logout',
             'detail': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_view(request):
+    """
+    Forgot password endpoint - sends reset email.
+    
+    POST /api/auth/forgot-password/
+    Body: {
+        "email": "user_email"
+    }
+    """
+    email = request.data.get('email')
+    
+    if not email:
+        return Response({
+            'error': 'Email is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email)
+        if not user:
+            return Response({
+                'error': 'No account found with this email address'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # For now, just return success message
+        # In production, you would send an email with reset link
+        return Response({
+            'message': 'Password reset instructions have been sent to your email address',
+            'note': 'This is a demo - in production, an actual reset email would be sent'
+        }, status=status.HTTP_200_OK)
+        
+    except User.DoesNotExist:
+        return Response({
+            'error': 'No account found with this email address'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': 'An error occurred',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])

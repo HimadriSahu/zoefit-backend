@@ -7,6 +7,7 @@ from .views import (
     profile_view,
     update_profile_view,
     logout_view,
+    forgot_password_view,
     change_password_view
 )
 
@@ -19,6 +20,7 @@ urlpatterns = [
     # Registration and Login
     path('register/', register_view, name='register'),
     path('login/', login_view, name='login'),
+    path('forgot-password/', forgot_password_view, name='forgot_password'),
     path('logout/', logout_view, name='logout'),
     
     # Token refresh

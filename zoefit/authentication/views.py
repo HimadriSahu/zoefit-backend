@@ -246,10 +246,6 @@ def forgot_password_view(request):
     
     try:
         user = User.objects.get(email=email)
-        if not user:
-            return Response({
-                'error': 'No account found with this email address'
-            }, status=status.HTTP_404_NOT_FOUND)
         
         # For now, just return success message
         # In production, you would send an email with reset link

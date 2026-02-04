@@ -38,10 +38,14 @@ python manage.py createsuperuser
 
 ### 5. Start Server
 ```bash
+# For local development only:
 python manage.py runserver
+
+# For React Native development (allows emulator access):
+python manage.py runserver 0.0.0.0:8000
 ```
 
-Server will run at: `http://localhost:8000`
+Server will run at: `http://localhost:8000` or `http://0.0.0.0:8000`
 
 ## Test Authentication
 

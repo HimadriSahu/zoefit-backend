@@ -7,23 +7,28 @@ from .models import User
 class UserAdmin(BaseUserAdmin):
     """
     Admin configuration for User model.
+    Only contains authentication-related fields.
     """
-    list_display = ('email', 'username', 'first_name', 'last_name', 'is_active', 'is_staff', 'created_at')
-    list_filter = ('is_active', 'is_staff', 'is_superuser', 'fitness_goal', 'created_at')
-    search_fields = ('email', 'username', 'first_name', 'last_name')
+    list_display = ('email', 'username', 'is_active', 'is_staff', 'created_at')
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'created_at')
+    search_fields = ('email', 'username')
     ordering = ('-created_at',)
     
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ('Additional Information', {
-            'fields': ('phone_number', 'date_of_birth', 'profile_picture')
+    fieldsets = (
+        (None, {
+            'fields': ('email', 'username', 'password')
         }),
-        ('Fitness Information', {
-            'fields': ('height', 'weight', 'fitness_goal')
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')
+        }),
+        ('Important dates', {
+            'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')
         }),
     )
     
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('Additional Information', {
-            'fields': ('email', 'phone_number', 'date_of_birth')
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'username', 'password1', 'password2'),
         }),
     )

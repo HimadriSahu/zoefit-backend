@@ -584,6 +584,85 @@ def dashboard_summary_view(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def daily_stats_view(request):
+    """
+    Get today's daily activity stats for the home screen.
+    
+    Returns aggregated data for today's calories burned, workout minutes,
+    and estimated steps based on ALL workout activities (completed and partial).
+    Stats reset automatically every 24 hours at midnight.
+    """
+    user = request.user
+    today = timezone.now().date()
+    
+    # Get today's workout sessions (both completed and partial)
+    today_workouts = WorkoutSession.objects.filter(
+        user=user,
+        start_time__date=today
+    )
+    
+    # Calculate total calories burned today (from all sessions)
+    total_calories = today_workouts.aggregate(
+        total=Sum('calories_burned')
+    )['total'] or 0
+    
+    # Calculate total workout minutes today (including partial sessions)
+    total_minutes = 0
+    for workout in today_workouts:
+        if workout.duration:
+            total_minutes += int(workout.duration.total_seconds() / 60)
+        elif workout.start_time and workout.end_time:
+            # Calculate duration from start/end times if duration field is not set
+            duration = workout.end_time - workout.start_time
+            total_minutes += int(duration.total_seconds() / 60)
+        elif workout.start_time:
+            # For ongoing sessions, calculate from start time to now
+            duration = timezone.now() - workout.start_time
+            total_minutes += int(duration.total_seconds() / 60)
+    
+    # Estimate steps based on workout type and duration (for all sessions)
+    estimated_steps = 0
+    for workout in today_workouts:
+        # Get workout duration in minutes
+        if workout.duration:
+            duration_minutes = int(workout.duration.total_seconds() / 60)
+        elif workout.start_time and workout.end_time:
+            duration = workout.end_time - workout.start_time
+            duration_minutes = int(duration.total_seconds() / 60)
+        elif workout.start_time:
+            duration = timezone.now() - workout.start_time
+            duration_minutes = int(duration.total_seconds() / 60)
+        else:
+            duration_minutes = 0
+        
+        # Estimate steps based on workout type (simplified)
+        if hasattr(workout, 'workout_plan') and workout.workout_plan:
+            workout_type = workout.workout_plan.workout_type.lower()
+            if 'cardio' in workout_type or 'running' in workout_type:
+                estimated_steps += duration_minutes * 150  # ~150 steps per minute for cardio
+            elif 'hiit' in workout_type:
+                estimated_steps += duration_minutes * 120  # ~120 steps per minute for HIIT
+            else:
+                estimated_steps += duration_minutes * 50   # ~50 steps per minute for strength training
+        else:
+            # Default estimation for workouts without plan
+            estimated_steps += duration_minutes * 80
+    
+    daily_stats = {
+        'date': today.isoformat(),
+        'calories_burned': total_calories,
+        'workout_minutes': total_minutes,
+        'estimated_steps': estimated_steps,
+        'workouts_completed': today_workouts.filter(completed=True).count(),
+        'total_workout_sessions': today_workouts.count(),
+        'last_updated': timezone.now().isoformat()
+    }
+    
+    return Response(daily_stats)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def achievements_view(request):
     """
     Get user's achievements and milestones.

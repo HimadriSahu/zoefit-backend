@@ -215,11 +215,11 @@ SIMPLE_JWT = {
 # AI Integration Settings
 # OpenAI Configuration
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4-turbo-preview')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 
 # Google Gemini Configuration
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-pro')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-pro')
 
 # AI Provider Preference (openai, gemini, or auto)
 AI_PROVIDER_PREFERENCE = os.environ.get('AI_PROVIDER_PREFERENCE', 'auto')

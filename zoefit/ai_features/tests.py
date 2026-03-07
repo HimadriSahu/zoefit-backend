@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from .models import HealthMetrics, MealPlan, WorkoutPlan
 from .ai_engine import AIRecommendationEngine
-from .chatbot import AIChatbot
+from .chatbot import EnhancedAIChatbot
 
 User = get_user_model()
 
@@ -62,7 +62,7 @@ class AIChatbotTests(TestCase):
     """Test AI chatbot functionality."""
     
     def setUp(self):
-        self.chatbot = AIChatbot()
+        self.chatbot = EnhancedAIChatbot()
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',

@@ -26,7 +26,7 @@ from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -35,9 +35,48 @@ from .models import (
     AIChatHistory, ProgressTracking
 )
 from .ai_engine import AIRecommendationEngine
-from .enhanced_chatbot import EnhancedAIChatbot
-from .advanced_ai import AdvancedAIEngine
-from .analytics import AIAnalytics
+from .chatbot import EnhancedAIChatbot
+# from .advanced_ai import AdvancedAIEngine
+# from .analytics import AIAnalytics
+
+
+def calculate_calories_burned(workout_type, duration_minutes):
+    """
+    Estimate calories burned based on workout type and duration.
+    Uses MET (Metabolic Equivalent of Task) values for different workout types.
+    """
+    # MET values for different workout types (approximate)
+    met_values = {
+        'cardio': 8.0,      # Running, cycling, etc.
+        'strength': 6.0,    # Weight training
+        'hiit': 10.0,       # High-intensity interval training
+        'flexibility': 3.0, # Yoga, stretching
+        'mixed': 7.0,       # Mixed workout types
+    }
+    
+    # Default MET value if workout type not found
+    met_value = met_values.get(workout_type.lower(), 7.0)
+    
+    # Average user weight (kg) - this could be made more accurate with user profile data
+    avg_weight = 70
+    
+    # Calories = MET × weight (kg) × duration (hours)
+    calories = met_value * avg_weight * (duration_minutes / 60)
+    
+    return int(calories)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def test_endpoint(request):
+    """
+    Simple test endpoint to verify server is working.
+    """
+    return Response({
+        'message': 'ZoeFit API is working!',
+        'status': 'success',
+        'timestamp': datetime.now().isoformat()
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -490,23 +529,89 @@ def get_progress_tracking(request):
 def update_workout_completion(request):
     """
     Update workout completion status and time.
+    Creates or updates WorkoutSession entries for tracking.
     """
     try:
-        workout_id = request.data.get('workout_id')
+        workout_id = request.data.get('workout_plan_id')  # Updated to match frontend
         completed = request.data.get('completed', True)
         completion_time_minutes = request.data.get('completion_time_minutes')
         rating = request.data.get('rating')
+        exercises_completed = request.data.get('exercises_completed', [])
+        workout_type = request.data.get('workout_type', 'Workout')  # Get workout type for default workouts
         
-        workout_plan = get_object_or_404(WorkoutPlan, id=workout_id, user=request.user)
+        workout_plan = None
+        if workout_id:
+            try:
+                workout_plan = WorkoutPlan.objects.get(id=workout_id, user=request.user)
+            except WorkoutPlan.DoesNotExist:
+                return Response({
+                    'error': 'Workout plan not found'
+                }, status=status.HTTP_404_NOT_FOUND)
         
-        workout_plan.completed = completed
-        if completion_time_minutes:
-            from datetime import timedelta
-            workout_plan.completion_time = timedelta(minutes=completion_time_minutes)
-        if rating:
-            workout_plan.user_rating = rating
+        if workout_plan:
+            workout_plan.completed = completed
+            if completion_time_minutes:
+                workout_plan.completion_time = timedelta(minutes=completion_time_minutes)
+            if rating:
+                workout_plan.user_rating = rating
+            workout_plan.save()
         
-        workout_plan.save()
+        # Create or update WorkoutSession for proper tracking
+        from frontend.models import WorkoutSession
+        from django.utils import timezone
+        
+        # Check if a session already exists for this workout plan today
+        today = timezone.now().date()
+        existing_session = WorkoutSession.objects.filter(
+            user=request.user,
+            workout_plan=workout_plan,
+            start_time__date=today
+        ).first()
+        
+        if existing_session:
+            # Update existing session
+            existing_session.completed = completed
+            if completion_time_minutes:
+                existing_session.duration = timedelta(minutes=completion_time_minutes)
+                existing_session.end_time = existing_session.start_time + existing_session.duration
+            if exercises_completed:
+                existing_session.exercises_completed = exercises_completed
+            if rating:
+                existing_session.difficulty_rating = rating
+            
+            # Calculate calories based on workout type and duration
+            if completion_time_minutes:
+                workout_type_for_calc = workout_plan.workout_type if workout_plan else workout_type
+                calories = calculate_calories_burned(workout_type_for_calc, completion_time_minutes)
+                existing_session.calories_burned = calories
+            
+            existing_session.save()
+        else:
+            # Create new session
+            start_time = timezone.now() - timedelta(minutes=completion_time_minutes or 0)
+            end_time = timezone.now() if completed else None
+            
+            calories = 0
+            if completion_time_minutes:
+                workout_type_for_calc = workout_plan.workout_type if workout_plan else workout_type
+                calories = calculate_calories_burned(workout_type_for_calc, completion_time_minutes)
+            
+            session_data = {
+                'user': request.user,
+                'workout_plan': workout_plan,
+                'start_time': start_time,
+                'end_time': end_time,
+                'completed': completed,
+                'exercises_completed': exercises_completed,
+                'calories_burned': calories,
+            }
+            
+            if completion_time_minutes:
+                session_data['duration'] = timedelta(minutes=completion_time_minutes)
+            if rating:
+                session_data['difficulty_rating'] = rating
+            
+            session = WorkoutSession.objects.create(**session_data)
         
         # Update progress tracking
         if completed:

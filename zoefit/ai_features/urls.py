@@ -23,6 +23,9 @@ from . import views
 app_name = 'ai_features'
 
 urlpatterns = [
+    # Test endpoint
+    path('test/', views.test_endpoint, name='test'),
+    
     # Health Profile Management
     path('health-metrics/', views.create_or_update_health_metrics, name='create_health_metrics'),
     path('health-metrics/get/', views.get_health_metrics, name='get_health_metrics'),

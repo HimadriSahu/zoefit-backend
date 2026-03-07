@@ -46,8 +46,10 @@ This module provides AI-powered fitness features for the ZoeFit application, inc
    - Personalization based on user metrics
 
 2. **AI Chatbot** (`chatbot.py`)
+   - Enhanced AI with OpenAI GPT and Google Gemini integration
    - Intent detection and classification
-   - Context-aware response generation
+   - Context-aware response generation using advanced AI models
+   - Fallback to rule-based responses for reliability
    - Motivational quote system
 
 3. **Data Models** (`models.py`)

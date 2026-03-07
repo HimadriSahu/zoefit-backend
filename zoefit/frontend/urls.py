@@ -40,6 +40,7 @@ urlpatterns = [
     
     # Dashboard URLs
     path('dashboard/', views.dashboard_summary_view, name='dashboard_summary'),
+    path('daily-stats/', views.daily_stats_view, name='daily_stats'),
     
     # Achievement URLs
     path('achievements/', views.achievements_view, name='achievements'),

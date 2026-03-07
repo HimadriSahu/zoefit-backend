@@ -20,7 +20,8 @@ from .views import (
     profile_view,
     create_profile_view,
     update_profile_view,
-    delete_profile_view
+    delete_profile_view,
+    upload_profile_picture_view
 )
 
 app_name = 'profiles'
@@ -34,6 +35,9 @@ urlpatterns = [
     
     # Profile Updates
     path('profile/update/', update_profile_view, name='update_profile'),
+    
+    # Profile Picture Upload
+    path('profile/upload-picture/', upload_profile_picture_view, name='upload_profile_picture'),
     
     # Profile Deletion
     path('profile/delete/', delete_profile_view, name='delete_profile'),

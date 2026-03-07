@@ -16,9 +16,10 @@ without profiles, but profiles give them a personalized experience.
 """
 
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 from .models import UserProfile
 from .serializers import UserProfileSerializer, UserProfileCreateSerializer
 
@@ -131,3 +132,52 @@ def delete_profile_view(request):
         return Response({
             'error': 'Profile not found'
         }, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def upload_profile_picture_view(request):
+    """
+    Upload profile picture for the current user.
+    
+    POST /api/profiles/profile/upload-picture/
+    """
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        # Create profile if it doesn't exist
+        profile = UserProfile.objects.create(user=request.user)
+    
+    if 'profile_picture' not in request.FILES:
+        return Response({
+            'error': 'No profile picture file provided'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    profile_picture = request.FILES['profile_picture']
+    
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/png', 'image/gif']
+    if profile_picture.content_type not in allowed_types:
+        return Response({
+            'error': 'Invalid file type. Only JPEG, PNG, and GIF images are allowed.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate file size (max 5MB)
+    max_size = 5 * 1024 * 1024  # 5MB in bytes
+    if profile_picture.size > max_size:
+        return Response({
+            'error': 'File too large. Maximum size is 5MB.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Save the profile picture
+    profile.profile_picture = profile_picture
+    profile.save()
+    
+    # Get the URL of the uploaded picture
+    picture_url = profile.profile_picture.url if profile.profile_picture else None
+    
+    return Response({
+        'message': 'Profile picture uploaded successfully',
+        'profile_picture_url': picture_url
+    }, status=status.HTTP_200_OK)

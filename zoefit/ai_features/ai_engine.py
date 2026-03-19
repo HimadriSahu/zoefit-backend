@@ -508,7 +508,7 @@ class AIRecommendationEngine:
             'confidence_score': 0.6
         }
     
-    def generate_workout_plan(self, metrics: HealthMetrics, day_number: int) -> Dict[str, Any]:
+    def generate_workout_plan(self, metrics: HealthMetrics, day_number: int, preferences=None) -> Dict[str, Any]:
         """
         Generate personalized workout plan based on user metrics and goals.
         """
@@ -516,42 +516,55 @@ class AIRecommendationEngine:
             # Determine fitness level
             fitness_level = self._assess_fitness_level(metrics)
             
-            # Select workout template based on goal and fitness level
+            # Get user preferences if available
+            user_equipment = []
+            preferred_difficulty = fitness_level
+            preferred_workout_type = 'mixed'
+            
+            if preferences:
+                user_equipment = getattr(preferences, 'equipment_available', [])
+                preferred_difficulty = getattr(preferences, 'difficulty_level', fitness_level)
+                preferred_workout_type = getattr(preferences, 'workout_type_preference', 'mixed')
+            
+            # Select workout template based on goal, fitness level, and preferences
             workout_template = self._select_workout_template(
-                metrics.fitness_goal, fitness_level, day_number
+                metrics.fitness_goal, preferred_difficulty, day_number, preferred_workout_type
             )
             
-            # Generate specific exercises
+            # Generate specific exercises based on available equipment
             exercises = self._generate_workout_exercises(
-                workout_template, metrics, day_number
+                workout_template, metrics, day_number, user_equipment
             )
             
             # Calculate workout metrics
+            workout_type = workout_template.get('type', preferred_workout_type)
             estimated_duration = self._calculate_workout_duration(exercises)
             intensity_score = self._calculate_intensity_score(
-                exercises, fitness_level
+                exercises, preferred_difficulty
             )
-            
-            # Get equipment needed
-            equipment_needed = self._get_equipment_needed(exercises)
             
             # Calculate adaptation score
             adaptation_score = self._calculate_adaptation_score(
                 metrics, exercises, day_number
             )
             
+            # Determine equipment needed for this workout
+            equipment_needed = self._determine_equipment_needed(exercises)
+            
             return {
+                'day': day_number,
                 'exercises': exercises,
-                'workout_type': workout_template['type'],
+                'workout_type': workout_type,
                 'estimated_duration': estimated_duration,
-                'difficulty_level': fitness_level,
+                'difficulty_level': preferred_difficulty,
                 'intensity_score': intensity_score,
-                'equipment_needed': equipment_needed,
-                'adaptation_score': adaptation_score
+                'adaptation_score': adaptation_score,
+                'equipment_needed': equipment_needed
             }
             
         except Exception as e:
-            return self._generate_fallback_workout_plan(metrics, day_number)
+            # Return fallback workout plan
+            return self._generate_fallback_workout_plan()
     
     def _assess_fitness_level(self, metrics: HealthMetrics) -> str:
         """
@@ -582,7 +595,7 @@ class AIRecommendationEngine:
             return 'advanced'
     
     def _select_workout_template(self, goal: str, fitness_level: str, 
-                               day_number: int) -> Dict:
+                                 day_number: int, preferred_workout_type: str = 'mixed') -> Dict:
         """
         Select appropriate workout template.
         """
@@ -612,7 +625,7 @@ class AIRecommendationEngine:
             }
     
     def _generate_workout_exercises(self, template: Dict, metrics: HealthMetrics, 
-                                   day_number: int) -> List[Dict]:
+                                   day_number: int, user_equipment: List[str] = None) -> List[Dict]:
         """
         Generate specific exercises for the workout.
         """
@@ -624,6 +637,13 @@ class AIRecommendationEngine:
             exercise_data = self._get_exercise_data(exercise_name)
             
             if exercise_data:
+                # Check if exercise requires equipment user doesn't have
+                exercise_equipment = exercise_data.get('equipment_needed', [])
+                if user_equipment and exercise_equipment:
+                    if not any(eq in user_equipment for eq in exercise_equipment):
+                        # Skip this exercise if user doesn't have required equipment
+                        continue
+                
                 # Generate sets and reps based on fitness level
                 sets_reps = self._generate_sets_reps(
                     exercise_data, metrics.fitness_goal, day_number
@@ -741,18 +761,6 @@ class AIRecommendationEngine:
         
         return min(10.0, max(1.0, intensity))
     
-    def _get_equipment_needed(self, exercises: List[Dict]) -> List[str]:
-        """
-        Get list of equipment needed for workout.
-        """
-        equipment = set()
-        
-        for exercise in exercises:
-            if 'equipment' in exercise:
-                equipment.update(exercise['equipment'])
-        
-        return list(equipment)
-    
     def _calculate_adaptation_score(self, metrics: HealthMetrics, 
                                   exercises: List[Dict], day_number: int) -> float:
         """
@@ -825,6 +833,18 @@ class AIRecommendationEngine:
             'estimated_duration': 20,
             'difficulty_level': 'beginner',
             'intensity_score': 4.0,
-            'equipment_needed': [],
-            'adaptation_score': 0.6
+            'adaptation_score': 0.6,
+            'equipment_needed': []
         }
+    
+    def _determine_equipment_needed(self, exercises: List[Dict]) -> List[str]:
+        """
+        Determine all equipment needed for a workout based on exercises.
+        """
+        equipment_needed = set()
+        
+        for exercise in exercises:
+            exercise_equipment = exercise.get('equipment_needed', [])
+            equipment_needed.update(exercise_equipment)
+        
+        return list(equipment_needed)

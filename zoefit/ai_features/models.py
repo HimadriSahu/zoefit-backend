@@ -276,6 +276,8 @@ class WorkoutPlan(models.Model):
     make future plans even better.
     
     Like meal plans, workout data is stored as JSON for flexibility.
+    Equipment requirements are tracked to ensure users can complete
+    the workouts with their available equipment.
     """
     user = models.ForeignKey(
         User,
@@ -309,6 +311,12 @@ class WorkoutPlan(models.Model):
         help_text="Estimated workout duration in minutes"
     )
     
+    # Equipment requirements
+    equipment_needed = models.JSONField(
+        default=list,
+        help_text="List of equipment needed for this workout"
+    )
+    
     difficulty_level = models.CharField(
         max_length=20,
         choices=[
@@ -322,12 +330,6 @@ class WorkoutPlan(models.Model):
     intensity_score = models.FloatField(
         default=5.0,
         help_text="Workout intensity score (1-10)"
-    )
-    
-    # Equipment needed
-    equipment_needed = models.JSONField(
-        default=list,
-        help_text="List of equipment needed for this workout"
     )
     
     # AI metadata
@@ -486,3 +488,83 @@ class ProgressTracking(models.Model):
     
     def __str__(self):
         return f"{self.user.username}'s Progress - {self.created_at.strftime('%Y-%m-%d')}"
+
+
+class WorkoutPreferences(models.Model):
+    """
+    Stores user workout preferences for AI personalization.
+    
+    This model captures how users like to work out so our AI can
+    create better personalized plans. We track:
+    
+    - What equipment they have available
+    - Their preferred difficulty level
+    - What types of workouts they enjoy most
+    
+    The AI uses these preferences to:
+    - Generate workout plans that match their equipment
+    - Adjust difficulty based on their comfort level
+    - Focus on workout types they're more likely to complete
+    
+    These preferences can be updated anytime as users get more
+    experienced or their equipment situation changes.
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='workout_preferences'
+    )
+    
+    # Preferred difficulty level
+    difficulty_level = models.CharField(
+        max_length=20,
+        choices=[
+            ('beginner', 'Beginner'),
+            ('intermediate', 'Intermediate'),
+            ('advanced', 'Advanced'),
+        ],
+        default='beginner',
+        help_text="User's preferred workout difficulty level"
+    )
+    
+    # Workout type preferences
+    workout_type_preference = models.CharField(
+        max_length=50,
+        choices=[
+            ('strength', 'Strength Training'),
+            ('cardio', 'Cardio'),
+            ('hiit', 'HIIT'),
+            ('flexibility', 'Flexibility'),
+            ('mixed', 'Mixed Workout'),
+        ],
+        default='mixed',
+        help_text="User's preferred type of workout"
+    )
+    
+    # Session preferences
+    preferred_session_duration = models.IntegerField(
+        default=30,
+        help_text="Preferred workout duration in minutes"
+    )
+    
+    preferred_workout_days_per_week = models.IntegerField(
+        default=3,
+        help_text="Number of workout days preferred per week"
+    )
+    
+    # Equipment availability
+    equipment_available = models.JSONField(
+        default=list,
+        help_text="List of equipment available to the user"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'ai_workout_preferences'
+        verbose_name = 'Workout Preferences'
+        verbose_name_plural = 'Workout Preferences'
+    
+    def __str__(self):
+        return f"{self.user.username}'s Workout Preferences"

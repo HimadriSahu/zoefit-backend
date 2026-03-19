@@ -30,6 +30,10 @@ urlpatterns = [
     path('health-metrics/', views.create_or_update_health_metrics, name='create_health_metrics'),
     path('health-metrics/get/', views.get_health_metrics, name='get_health_metrics'),
     
+    # Workout Preferences
+    path('workout-preferences/', views.save_workout_preferences, name='save_workout_preferences'),
+    path('workout-preferences/get/', views.get_workout_preferences, name='get_workout_preferences'),
+    
     # AI Meal Planning
     path('meal-plan/generate/', views.generate_meal_plan, name='generate_meal_plan'),
     path('meal-plans/', views.get_meal_plans, name='get_meal_plans'),

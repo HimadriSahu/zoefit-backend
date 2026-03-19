@@ -70,7 +70,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'authentication',  # Authentication module
-    'profiles',  # User profiles module
+    'users',  # User management module (comprehensive user data)
     'ai_features',  # AI-powered fitness features
     'frontend',  # Frontend features and data visualization
 ]

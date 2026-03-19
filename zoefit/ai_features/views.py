@@ -32,7 +32,7 @@ from rest_framework import status
 
 from .models import (
     HealthMetrics, MealPlan, WorkoutPlan, 
-    AIChatHistory, ProgressTracking
+    AIChatHistory, ProgressTracking, WorkoutPreferences
 )
 from .ai_engine import AIRecommendationEngine
 from .chatbot import EnhancedAIChatbot
@@ -309,6 +309,12 @@ def generate_workout_plan(request):
         # Get user's health metrics
         metrics = get_object_or_404(HealthMetrics, user=user)
         
+        # Get user's workout preferences for equipment and personalization
+        try:
+            preferences = WorkoutPreferences.objects.get(user=user)
+        except WorkoutPreferences.DoesNotExist:
+            preferences = WorkoutPreferences.objects.create(user=user)
+        
         # Check if workout plan already exists for this day
         existing_plan = WorkoutPlan.objects.filter(user=user, day=day_number).first()
         if existing_plan:
@@ -325,9 +331,9 @@ def generate_workout_plan(request):
                 }
             }, status=status.HTTP_200_OK)
         
-        # Generate workout plan using AI engine
+        # Generate workout plan using AI engine with preferences
         ai_engine = AIRecommendationEngine()
-        workout_plan_data = ai_engine.generate_workout_plan(metrics, day_number)
+        workout_plan_data = ai_engine.generate_workout_plan(metrics, day_number, preferences)
         
         # Create workout plan record
         workout_plan = WorkoutPlan.objects.create(
@@ -338,8 +344,8 @@ def generate_workout_plan(request):
             estimated_duration=workout_plan_data['estimated_duration'],
             difficulty_level=workout_plan_data['difficulty_level'],
             intensity_score=workout_plan_data['intensity_score'],
-            equipment_needed=workout_plan_data['equipment_needed'],
-            adaptation_score=workout_plan_data['adaptation_score']
+            adaptation_score=workout_plan_data['adaptation_score'],
+            equipment_needed=workout_plan_data.get('equipment_needed', [])
         )
         
         return Response({
@@ -824,5 +830,113 @@ def get_system_analytics(request):
         
     except Exception as e:
         return Response({
-            'error': f'Something went wrong while updating your profile: {str(e)}'
+            'error': f'Something went wrong while getting system analytics: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ============= WORKOUT PREFERENCES API =============
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_workout_preferences(request):
+    """
+    Save or update user workout preferences.
+    
+    This endpoint stores how users like to work out so our AI can
+    create better personalized plans. We accept:
+    
+    - Preferred difficulty level
+    - Workout type preferences
+    - Session duration preferences
+    
+    If preferences already exist, we update them. Otherwise we create
+    a new preferences record for the user.
+    """
+    try:
+        user = request.user
+        data = request.data
+        
+        # Get or create workout preferences
+        preferences, created = WorkoutPreferences.objects.get_or_create(
+            user=user,
+            defaults={
+                'difficulty_level': data.get('difficulty_level', 'beginner'),
+                'workout_type_preference': data.get('workout_type_preference', 'mixed'),
+                'preferred_session_duration': data.get('preferred_session_duration', 30),
+                'preferred_workout_days_per_week': data.get('preferred_workout_days_per_week', 3),
+                'equipment_available': data.get('equipment_available', []),
+            }
+        )
+        
+        # If preferences already existed, update them
+        if not created:
+            preferences.difficulty_level = data.get('difficulty_level', preferences.difficulty_level)
+            preferences.workout_type_preference = data.get('workout_type_preference', preferences.workout_type_preference)
+            preferences.preferred_session_duration = data.get('preferred_session_duration', preferences.preferred_session_duration)
+            preferences.preferred_workout_days_per_week = data.get('preferred_workout_days_per_week', preferences.preferred_workout_days_per_week)
+            preferences.equipment_available = data.get('equipment_available', preferences.equipment_available)
+            preferences.save()
+        
+        # Return the preferences data
+        response_data = {
+            'message': 'Workout preferences saved successfully',
+            'preferences': {
+                'difficulty_level': preferences.difficulty_level,
+                'workout_type_preference': preferences.workout_type_preference,
+                'preferred_session_duration': preferences.preferred_session_duration,
+                'preferred_workout_days_per_week': preferences.preferred_workout_days_per_week,
+                'equipment_available': preferences.equipment_available,
+            }
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Something went wrong while saving workout preferences: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_workout_preferences(request):
+    """
+    Get user's workout preferences.
+    
+    Returns the user's current workout preferences or creates
+    default preferences if none exist yet.
+    """
+    try:
+        user = request.user
+        
+        # Try to get existing preferences
+        try:
+            preferences = WorkoutPreferences.objects.get(user=user)
+        except WorkoutPreferences.DoesNotExist:
+            # Create default preferences if none exist
+            preferences = WorkoutPreferences.objects.create(
+                user=user,
+                difficulty_level='beginner',
+                workout_type_preference='mixed',
+                preferred_session_duration=30,
+                preferred_workout_days_per_week=3,
+                equipment_available=[]
+            )
+        
+        response_data = {
+            'message': 'Workout preferences retrieved successfully',
+            'preferences': {
+                'difficulty_level': preferences.difficulty_level,
+                'workout_type_preference': preferences.workout_type_preference,
+                'preferred_session_duration': preferences.preferred_session_duration,
+                'preferred_workout_days_per_week': preferences.preferred_workout_days_per_week,
+                'equipment_available': preferences.equipment_available,
+            }
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Something went wrong while getting workout preferences: {str(e)}'
         }, status=status.HTTP_400_BAD_REQUEST)

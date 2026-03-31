@@ -24,7 +24,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'last_name',
             'full_name',
             'email',
-            'phone_number',
             'date_of_birth',
             'profile_picture',
             'height',
@@ -34,19 +33,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'activity_level',
             'workout_duration',
             'workout_types',
-            'difficulty_level',
-            'workout_type_preference',
             'dietary_preferences',
             'allergies',
             'medical_conditions',
             'gender',
-            'breakfast_time',
-            'lunch_time',
-            'dinner_time',
-            'body_fat_percentage',
-            'muscle_mass',
-            'bio',
-            'location',
             'onboarding_completed',
             'onboarding_completed_at',
             'bmi',
@@ -80,11 +70,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Workout duration must be between 5 and 300 minutes.")
         return value
     
-    def validate_body_fat_percentage(self, value):
-        """Validate body fat percentage is reasonable (1-70%)."""
-        if value and (value < 1 or value > 70):
-            raise serializers.ValidationError("Body fat percentage must be between 1 and 70%.")
-        return value
 
 
 class UserProfileCreateSerializer(serializers.ModelSerializer):
@@ -96,7 +81,6 @@ class UserProfileCreateSerializer(serializers.ModelSerializer):
         fields = (
             'first_name',
             'last_name',
-            'phone_number',
             'date_of_birth',
             'profile_picture',
             'height',
@@ -106,19 +90,10 @@ class UserProfileCreateSerializer(serializers.ModelSerializer):
             'activity_level',
             'workout_duration',
             'workout_types',
-            'difficulty_level',
-            'workout_type_preference',
             'dietary_preferences',
             'allergies',
             'medical_conditions',
-            'gender',
-            'breakfast_time',
-            'lunch_time',
-            'dinner_time',
-            'body_fat_percentage',
-            'muscle_mass',
-            'bio',
-            'location'
+            'gender'
         )
     
     def validate_height(self, value):
@@ -145,11 +120,6 @@ class UserProfileCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Workout duration must be between 5 and 300 minutes.")
         return value
     
-    def validate_body_fat_percentage(self, value):
-        """Validate body fat percentage is reasonable (1-70%)."""
-        if value and (value < 1 or value > 70):
-            raise serializers.ValidationError("Body fat percentage must be between 1 and 70%.")
-        return value
 
 
 class OnboardingSerializer(serializers.ModelSerializer):
@@ -160,26 +130,6 @@ class OnboardingSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = (
             'gender',
-            'date_of_birth',
-            'height',
-            'weight',
-            'target_weight',
-            'fitness_goal',
-            'activity_level',
-            'breakfast_time',
-            'lunch_time',
-            'dinner_time',
-            'phone_number',
-            'bio',
-            'location',
-            'dietary_preferences',
-            'allergies',
-            'medical_conditions',
-            'difficulty_level',
-            'workout_type_preference',
-            'workout_types',
-            'body_fat_percentage',
-            'muscle_mass',
         )
     
     def validate_height(self, value):
@@ -200,11 +150,6 @@ class OnboardingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Target weight must be between 20 and 500 kg.")
         return value
     
-    def validate_body_fat_percentage(self, value):
-        """Validate body fat percentage is reasonable (1-70%)."""
-        if value and (value < 1 or value > 70):
-            raise serializers.ValidationError("Body fat percentage must be between 1 and 70%.")
-        return value
 
 
 class UserActivitySerializer(serializers.ModelSerializer):

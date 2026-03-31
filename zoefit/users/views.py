@@ -265,7 +265,7 @@ def profile_analytics_view(request):
         analytics = {
             'profile_completion': {
                 'personal_info': bool(profile.first_name or profile.last_name),
-                'contact_info': bool(profile.phone_number or profile.email),
+                'contact_info': bool(profile.email),
                 'health_metrics': bool(profile.height and profile.weight),
                 'fitness_goals': bool(profile.fitness_goal),
                 'preferences': bool(profile.dietary_preferences or profile.workout_types),
@@ -363,14 +363,12 @@ def contact_info_view(request):
     try:
         profile = request.user.user_profile
         return Response({
-            'phone_number': profile.phone_number,
             'email': request.user.email
         }, status=status.HTTP_200_OK)
     except UserProfile.DoesNotExist:
         # Create a basic profile if it doesn't exist
         profile = UserProfile.objects.create(user=request.user)
         return Response({
-            'phone_number': profile.phone_number,
             'email': request.user.email
         }, status=status.HTTP_201_CREATED)
 
@@ -389,22 +387,10 @@ def update_contact_info_view(request):
         # Create profile if it doesn't exist
         profile = UserProfile.objects.create(user=request.user)
     
-    # Only allow updating phone_number
-    if 'phone_number' in request.data:
-        profile.phone_number = request.data['phone_number']
-        profile.save()
-        
-        # Track contact info update activity
-        UserActivity.objects.create(
-            user=request.user,
-            activity_type='profile_updated',
-            activity_data={'phone_number_updated': True}
-        )
-    
+    # No contact info fields to update
     return Response({
         'message': 'Contact information updated successfully',
         'contact_info': {
-            'phone_number': profile.phone_number,
             'email': request.user.email
         }
     }, status=status.HTTP_200_OK)

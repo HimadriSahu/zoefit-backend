@@ -42,11 +42,11 @@ class WorkoutSession(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='workout_sessions'
+        related_name='frontend_workout_sessions'
     )
     
     workout_plan = models.ForeignKey(
-        'ai_features.WorkoutPlan',
+        'workout.WorkoutPlan',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

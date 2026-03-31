@@ -24,7 +24,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('ai_features', '0001_initial'),  # Dependency on AI features for workout plans
     ]
 
     operations = [
@@ -43,7 +42,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='workout_sessions', to=settings.AUTH_USER_MODEL)),
-                ('workout_plan', models.ForeignKey(blank=True, help_text='The AI-generated workout plan this session follows', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='actual_sessions', to='ai_features.workoutplan')),
+                ('workout_plan', models.ForeignKey(blank=True, help_text='The AI-generated workout plan this session follows', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='actual_sessions', to='workout.WorkoutPlan')),
             ],
             options={
                 'verbose_name': 'Workout Session',

@@ -20,3 +20,6 @@ class AiFeaturesConfig(AppConfig):
         # Initialize AI engine components
         from .ai_engine import AIRecommendationEngine
         from .chatbot import EnhancedAIChatbot
+        
+        # Import and connect signals for automatic data synchronization
+        from . import signals

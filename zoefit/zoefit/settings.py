@@ -71,7 +71,9 @@ INSTALLED_APPS = [
     'corsheaders',
     'authentication',  # Authentication module
     'users',  # User management module (comprehensive user data)
-    'ai_features',  # AI-powered fitness features
+    'ai_features',  # Core AI features (health metrics, chatbot, insights)
+    'workout',  # Workout-specific features
+    'nutrition',  # Nutrition-specific features
     'frontend',  # Frontend features and data visualization
 ]
 
@@ -215,19 +217,21 @@ SIMPLE_JWT = {
 # AI Integration Settings
 # OpenAI Configuration
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')  # Upgraded to full GPT-4o for better performance
 
 # Google Gemini Configuration
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-pro')
 
 # AI Provider Preference (openai, gemini, or auto)
-AI_PROVIDER_PREFERENCE = os.environ.get('AI_PROVIDER_PREFERENCE', 'auto')
+AI_PROVIDER_PREFERENCE = os.environ.get('AI_PROVIDER_PREFERENCE', 'openai')  # Default to OpenAI for better quality
 
-# AI Chat Settings
-AI_CHAT_MAX_TOKENS = int(os.environ.get('AI_CHAT_MAX_TOKENS', '300'))
-AI_CHAT_TEMPERATURE = float(os.environ.get('AI_CHAT_TEMPERATURE', '0.7'))
-AI_CHAT_RATE_LIMIT = int(os.environ.get('AI_CHAT_RATE_LIMIT', '50'))  # requests per hour
+# Enhanced AI Chat Settings
+AI_CHAT_MAX_TOKENS = int(os.environ.get('AI_CHAT_MAX_TOKENS', '500'))  # Increased for more detailed responses
+AI_CHAT_TEMPERATURE = float(os.environ.get('AI_CHAT_TEMPERATURE', '0.8'))  # Slightly higher for more creative responses
+AI_CHAT_RATE_LIMIT = int(os.environ.get('AI_CHAT_RATE_LIMIT', '100'))  # Increased rate limit
+AI_CHAT_CONTEXT_WINDOW = int(os.environ.get('AI_CHAT_CONTEXT_WINDOW', '10'))  # Number of previous messages to consider
+AI_CHAT_ENABLE_MEMORY = os.environ.get('AI_CHAT_ENABLE_MEMORY', 'True').lower() == 'true'  # Enable conversation memory
 
 # Frontend URL for password reset links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')

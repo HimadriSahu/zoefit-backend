@@ -12,9 +12,10 @@ from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
 from .models import (
-    HealthMetrics, MealPlan, WorkoutPlan, 
-    AIChatHistory, ProgressTracking
+    HealthMetrics, AIChatHistory, ProgressTracking
 )
+from nutrition.models import MealPlan
+from workout.models import WorkoutPlan
 
 
 class AIAnalytics:

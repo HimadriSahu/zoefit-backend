@@ -8,7 +8,9 @@ workout adaptation, and enhanced personalization.
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Tuple
-from .models import HealthMetrics, ProgressTracking, WorkoutPlan, MealPlan
+from .models import HealthMetrics, ProgressTracking
+from workout.models import WorkoutPlan
+from nutrition.models import MealPlan
 
 
 class AdvancedAIEngine:

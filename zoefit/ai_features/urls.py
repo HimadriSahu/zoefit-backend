@@ -19,6 +19,7 @@ since AI recommendations are personalized to each user.
 
 from django.urls import path
 from . import views
+from . import aggregated_views
 
 app_name = 'ai_features'
 
@@ -29,10 +30,6 @@ urlpatterns = [
     # Health Profile Management
     path('health-metrics/', views.create_or_update_health_metrics, name='create_health_metrics'),
     path('health-metrics/get/', views.get_health_metrics, name='get_health_metrics'),
-    
-    # Workout Preferences
-    path('workout-preferences/', views.save_workout_preferences, name='save_workout_preferences'),
-    path('workout-preferences/get/', views.get_workout_preferences, name='get_workout_preferences'),
     
     # AI Meal Planning
     path('meal-plan/generate/', views.generate_meal_plan, name='generate_meal_plan'),
@@ -58,4 +55,12 @@ urlpatterns = [
     # Analytics and Reporting
     path('analytics/user/', views.get_user_analytics, name='get_user_analytics'),
     path('analytics/system/', views.get_system_analytics, name='get_system_analytics'),
+    
+    # Aggregated Endpoints - Cross-module data for frontend convenience
+    path('dashboard/', aggregated_views.dashboard_data, name='dashboard_data'),
+    path('summary/', aggregated_views.user_summary, name='user_summary'),
+    path('sync-progress/', aggregated_views.sync_progress, name='sync_progress'),
+    path('today/', aggregated_views.today_overview, name='today_overview'),
+    path('weekly-report/', aggregated_views.weekly_report, name='weekly_report'),
+    path('progress-insights/', aggregated_views.progress_insights, name='progress_insights'),
 ]

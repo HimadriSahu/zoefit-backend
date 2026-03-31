@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from .models import HealthMetrics, MealPlan, WorkoutPlan
+from .models import HealthMetrics, AIChatHistory, ProgressTracking
 from .ai_engine import AIRecommendationEngine
 from .chatbot import EnhancedAIChatbot
 
@@ -167,6 +167,8 @@ class HealthMetricsAPITests(TestCase):
         self.assertIn('height', response.data)
         self.assertIn('weight', response.data)
         self.assertIn('bmi', response.data)
+        self.assertIn('fitness_goal', response.data)
+        self.assertIn('activity_level', response.data)
 
 
 class MealPlanAPITests(TestCase):

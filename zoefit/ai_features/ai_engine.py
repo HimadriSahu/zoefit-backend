@@ -27,8 +27,9 @@ from datetime import datetime, date
 from typing import Dict, List, Any
 
 from .models import HealthMetrics
-from .nutrition_data import MEAL_TEMPLATES, FOOD_DATABASE
-from .exercise_data import WORKOUT_TEMPLATES, EXERCISE_DATABASE
+# Import data from respective modules
+from workout.exercise_data import WORKOUT_TEMPLATES, EXERCISE_DATABASE
+from nutrition.nutrition_data import MEAL_TEMPLATES, FOOD_DATABASE
 
 
 class AIRecommendationEngine:

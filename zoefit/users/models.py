@@ -32,7 +32,6 @@ class UserProfile(models.Model):
     # Personal Information
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
     
@@ -87,28 +86,6 @@ class UserProfile(models.Model):
         null=True,
         help_text="List of preferred workout types"
     )
-    difficulty_level = models.CharField(
-        max_length=20,
-        blank=True,
-        null=True,
-        choices=[
-            ('beginner', 'Beginner'),
-            ('intermediate', 'Intermediate'),
-            ('advanced', 'Advanced'),
-        ]
-    )
-    workout_type_preference = models.CharField(
-        max_length=20,
-        blank=True,
-        null=True,
-        choices=[
-            ('strength', 'Strength'),
-            ('cardio', 'Cardio'),
-            ('hiit', 'HIIT'),
-            ('flexibility', 'Flexibility'),
-            ('mixed', 'Mixed'),
-        ]
-    )
     
     # Dietary Preferences
     dietary_preferences = models.JSONField(
@@ -138,37 +115,10 @@ class UserProfile(models.Model):
             ('other', 'Other'),
         ]
     )
-    breakfast_time = models.TimeField(
-        blank=True,
-        null=True,
-        help_text="Preferred breakfast time"
-    )
-    lunch_time = models.TimeField(
-        blank=True,
-        null=True,
-        help_text="Preferred lunch time"
-    )
-    dinner_time = models.TimeField(
-        blank=True,
-        null=True,
-        help_text="Preferred dinner time"
-    )
     
     # Body Composition
-    body_fat_percentage = models.FloatField(
-        blank=True,
-        null=True,
-        help_text="Body fat percentage"
-    )
-    muscle_mass = models.FloatField(
-        blank=True,
-        null=True,
-        help_text="Muscle mass in kg"
-    )
     
     # Additional fields
-    bio = models.TextField(max_length=500, blank=True)
-    location = models.CharField(max_length=100, blank=True)
     
     # Onboarding completion tracking
     onboarding_completed = models.BooleanField(default=False)

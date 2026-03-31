@@ -1,23 +1,19 @@
 """
-AI-powered fitness API endpoints for ZoeFit
+Core AI features views for ZoeFit
 
-This module handles all the AI features that make ZoeFit smart:
+This module handles the core AI functionality that is shared
+across workout and nutrition modules:
 - Health profile management and BMI calculations
-- Personalized meal planning based on dietary needs
-- Custom workout generation that adapts to user progress
 - AI chatbot for fitness questions and advice
-- Progress tracking and predictive insights
+- General progress tracking and AI insights
 - Advanced analytics and recommendations
 
-Our AI uses machine learning to understand each user's unique needs
-and provides personalized recommendations that actually work.
-
-Each endpoint is designed to be fast, reliable, and user-friendly.
-We handle errors gracefully and provide helpful error messages
-so users know what to do next.
+Workout-specific and nutrition-specific endpoints have been moved
+to their respective modules for better separation of concerns.
 """
 
 import json
+import logging
 from datetime import date, timedelta, datetime
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
@@ -25,19 +21,18 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import (
-    HealthMetrics, MealPlan, WorkoutPlan, 
-    AIChatHistory, ProgressTracking, WorkoutPreferences
-)
-from .ai_engine import AIRecommendationEngine
+from .models import HealthMetrics, AIChatHistory, ProgressTracking
 from .chatbot import EnhancedAIChatbot
-# from .advanced_ai import AdvancedAIEngine
-# from .analytics import AIAnalytics
+from .advanced_ai import AdvancedAIEngine
+from .analytics import AIAnalytics
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_calories_burned(workout_type, duration_minutes):
@@ -309,12 +304,6 @@ def generate_workout_plan(request):
         # Get user's health metrics
         metrics = get_object_or_404(HealthMetrics, user=user)
         
-        # Get user's workout preferences for equipment and personalization
-        try:
-            preferences = WorkoutPreferences.objects.get(user=user)
-        except WorkoutPreferences.DoesNotExist:
-            preferences = WorkoutPreferences.objects.create(user=user)
-        
         # Check if workout plan already exists for this day
         existing_plan = WorkoutPlan.objects.filter(user=user, day=day_number).first()
         if existing_plan:
@@ -331,9 +320,9 @@ def generate_workout_plan(request):
                 }
             }, status=status.HTTP_200_OK)
         
-        # Generate workout plan using AI engine with preferences
+        # Generate workout plan using AI engine
         ai_engine = AIRecommendationEngine()
-        workout_plan_data = ai_engine.generate_workout_plan(metrics, day_number, preferences)
+        workout_plan_data = ai_engine.generate_workout_plan(metrics, day_number)
         
         # Create workout plan record
         workout_plan = WorkoutPlan.objects.create(
@@ -415,6 +404,7 @@ def get_workout_plans(request):
 def ai_chat(request):
     """
     AI chatbot endpoint for fitness-related questions and advice.
+    Enhanced with conversation memory and context awareness.
     """
     try:
         user = request.user
@@ -431,31 +421,79 @@ def ai_chat(request):
         except HealthMetrics.DoesNotExist:
             metrics = None
         
-        # Process message with enhanced AI chatbot
-        from django.conf import settings
-        ai_provider = getattr(settings, 'AI_PROVIDER_PREFERENCE', 'auto')
-        chatbot = EnhancedAIChatbot(ai_provider=ai_provider)
-        response_data = chatbot.process_message(message, metrics)
+        # Get enhanced conversation history for context awareness
+        context_window = getattr(settings, 'AI_CHAT_CONTEXT_WINDOW', 10)
+        conversation_history = list(AIChatHistory.objects.filter(
+            user=user
+        ).order_by('-created_at')[:context_window].values('user_message', 'ai_response', 'intent_detected', 'confidence_score'))
         
-        # Save chat history
+        # Process message with enhanced AI chatbot
+        ai_provider = getattr(settings, 'AI_PROVIDER_PREFERENCE', 'openai')
+        chatbot = EnhancedAIChatbot(ai_provider=ai_provider)
+        response_data = chatbot.process_message(message, metrics, conversation_history)
+        
+        # Save chat history with enhanced data
         chat_history = AIChatHistory.objects.create(
             user=user,
             user_message=message,
             ai_response=response_data['response'],
             intent_detected=response_data['intent'],
-            confidence_score=response_data['confidence']
+            confidence_score=response_data['confidence'],
+            ai_provider_used=response_data.get('ai_provider', 'unknown')
         )
+        
+        # Generate contextual suggestions based on user profile
+        suggestions = response_data.get('suggestions', [])
+        if metrics:
+            # Add personalized suggestions based on user goals
+            if metrics.fitness_goal == 'weight_loss' and response_data['intent'] == 'exercise_advice':
+                suggestions.extend(["Ask about cardio routines", "Learn about calorie burning exercises"])
+            elif metrics.fitness_goal == 'muscle_gain' and response_data['intent'] == 'nutrition_question':
+                suggestions.extend(["Ask about protein timing", "Learn about muscle-building foods"])
+            elif metrics.fitness_goal == 'endurance' and response_data['intent'] == 'exercise_advice':
+                suggestions.extend(["Ask about stamina training", "Learn about endurance workouts"])
         
         return Response({
             'response': response_data['response'],
             'intent': response_data['intent'],
             'confidence': response_data['confidence'],
-            'suggestions': response_data.get('suggestions', [])
+            'suggestions': suggestions[:5],  # Limit to 5 suggestions
+            'ai_provider': response_data.get('ai_provider', 'unknown'),
+            'context_used': {
+                'has_health_metrics': metrics is not None,
+                'conversation_history_count': len(conversation_history),
+                'personalized_response': bool(metrics)
+            }
         })
         
     except Exception as e:
+        logger.error(f"Error in AI chat: {e}")
         return Response({
-            'error': f'Something went wrong while updating your profile: {str(e)}'
+            'error': f'Something went wrong while processing your message: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def clear_chat_history(request):
+    """
+    Clear user's chat history for privacy or fresh start.
+    """
+    try:
+        user = request.user
+        
+        # Delete all chat history for the user
+        deleted_count = AIChatHistory.objects.filter(user=user).delete()[0]
+        
+        return Response({
+            'message': f'Chat history cleared successfully. Deleted {deleted_count} messages.',
+            'deleted_count': deleted_count
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error clearing chat history: {e}")
+        return Response({
+            'error': f'Something went wrong while clearing chat history: {str(e)}'
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -835,108 +873,5 @@ def get_system_analytics(request):
 
 
 # ============= WORKOUT PREFERENCES API =============
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def save_workout_preferences(request):
-    """
-    Save or update user workout preferences.
-    
-    This endpoint stores how users like to work out so our AI can
-    create better personalized plans. We accept:
-    
-    - Preferred difficulty level
-    - Workout type preferences
-    - Session duration preferences
-    
-    If preferences already exist, we update them. Otherwise we create
-    a new preferences record for the user.
-    """
-    try:
-        user = request.user
-        data = request.data
-        
-        # Get or create workout preferences
-        preferences, created = WorkoutPreferences.objects.get_or_create(
-            user=user,
-            defaults={
-                'difficulty_level': data.get('difficulty_level', 'beginner'),
-                'workout_type_preference': data.get('workout_type_preference', 'mixed'),
-                'preferred_session_duration': data.get('preferred_session_duration', 30),
-                'preferred_workout_days_per_week': data.get('preferred_workout_days_per_week', 3),
-                'equipment_available': data.get('equipment_available', []),
-            }
-        )
-        
-        # If preferences already existed, update them
-        if not created:
-            preferences.difficulty_level = data.get('difficulty_level', preferences.difficulty_level)
-            preferences.workout_type_preference = data.get('workout_type_preference', preferences.workout_type_preference)
-            preferences.preferred_session_duration = data.get('preferred_session_duration', preferences.preferred_session_duration)
-            preferences.preferred_workout_days_per_week = data.get('preferred_workout_days_per_week', preferences.preferred_workout_days_per_week)
-            preferences.equipment_available = data.get('equipment_available', preferences.equipment_available)
-            preferences.save()
-        
-        # Return the preferences data
-        response_data = {
-            'message': 'Workout preferences saved successfully',
-            'preferences': {
-                'difficulty_level': preferences.difficulty_level,
-                'workout_type_preference': preferences.workout_type_preference,
-                'preferred_session_duration': preferences.preferred_session_duration,
-                'preferred_workout_days_per_week': preferences.preferred_workout_days_per_week,
-                'equipment_available': preferences.equipment_available,
-            }
-        }
-        
-        return Response(response_data, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response({
-            'error': f'Something went wrong while saving workout preferences: {str(e)}'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_workout_preferences(request):
-    """
-    Get user's workout preferences.
-    
-    Returns the user's current workout preferences or creates
-    default preferences if none exist yet.
-    """
-    try:
-        user = request.user
-        
-        # Try to get existing preferences
-        try:
-            preferences = WorkoutPreferences.objects.get(user=user)
-        except WorkoutPreferences.DoesNotExist:
-            # Create default preferences if none exist
-            preferences = WorkoutPreferences.objects.create(
-                user=user,
-                difficulty_level='beginner',
-                workout_type_preference='mixed',
-                preferred_session_duration=30,
-                preferred_workout_days_per_week=3,
-                equipment_available=[]
-            )
-        
-        response_data = {
-            'message': 'Workout preferences retrieved successfully',
-            'preferences': {
-                'difficulty_level': preferences.difficulty_level,
-                'workout_type_preference': preferences.workout_type_preference,
-                'preferred_session_duration': preferences.preferred_session_duration,
-                'preferred_workout_days_per_week': preferences.preferred_workout_days_per_week,
-                'equipment_available': preferences.equipment_available,
-            }
-        }
-        
-        return Response(response_data, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response({
-            'error': f'Something went wrong while getting workout preferences: {str(e)}'
-        }, status=status.HTTP_400_BAD_REQUEST)
+# NOTE: WorkoutPreferences functionality has been removed
+# Users can now set preferences directly through their profile

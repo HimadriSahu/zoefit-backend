@@ -1,18 +1,14 @@
 """
-AI-powered fitness models for ZoeFit
+Core AI features models for ZoeFit
 
-This module contains the data models that power our AI fitness features.
-These models store everything we need to create personalized workout
-and meal plans for our users.
+This module contains the core AI models that are shared across
+workout and nutrition modules:
+- Health metrics and profile data
+- AI chat history and conversations
+- General progress tracking
 
-The AI uses this data to understand:
-- User's current fitness level and goals
-- Dietary preferences and restrictions
-- Progress over time
-- How users interact with their plans
-
-Think of these models as the foundation that makes our AI recommendations
-smart and personal to each user.
+Workout-specific and nutrition-specific models have been moved
+to their respective modules for better separation of concerns.
 """
 
 from django.db import models
@@ -192,181 +188,6 @@ class HealthMetrics(models.Model):
             return int(tdee)  # Maintenance - eat what you burn
 
 
-class MealPlan(models.Model):
-    """
-    Personalized meal plans created by our AI.
-    
-    Each meal plan is for a specific day and includes:
-    - Breakfast, lunch, dinner, and snacks
-    - Total calories and macronutrients
-    - AI confidence score (how sure we are this plan will work for you)
-    
-    Users can rate their meal plans and leave feedback.
-    This helps our AI learn what works and what doesn't.
-    
-    The meal data is stored as JSON so we can be flexible
-    about the structure and add new features easily.
-    """
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='meal_plans'
-    )
-    
-    date = models.DateField()
-    
-    # Meal data stored as JSON
-    meals = models.JSONField(
-        help_text="Meal data including breakfast, lunch, dinner, snacks"
-    )
-    
-    total_calories = models.IntegerField()
-    
-    # Macronutrients
-    protein = models.FloatField(default=0)
-    carbs = models.FloatField(default=0)
-    fat = models.FloatField(default=0)
-    
-    # AI metadata
-    generated_by_ai = models.BooleanField(default=True)
-    confidence_score = models.FloatField(
-        default=0.0,
-        help_text="AI confidence in meal plan quality (0-1)"
-    )
-    
-    # User feedback
-    user_rating = models.IntegerField(
-        null=True,
-        blank=True,
-        choices=[(i, i) for i in range(1, 6)],
-        help_text="User rating 1-5"
-    )
-    
-    user_feedback = models.TextField(
-        blank=True,
-        help_text="User feedback on meal plan"
-    )
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'ai_meal_plans'
-        verbose_name = 'Meal Plan'
-        verbose_name_plural = 'Meal Plans'
-        unique_together = ['user', 'date']
-        ordering = ['-date']
-    
-    def __str__(self):
-        return f"{self.user.username}'s Meal Plan - {self.date}"
-
-
-class WorkoutPlan(models.Model):
-    """
-    Personalized workout plans created by our AI.
-    
-    Each workout plan is designed for a specific day in a user's
-    fitness program. The AI considers:
-    - User's current fitness level and goals
-    - Equipment they have available
-    - Previous workout performance
-    - How they're progressing over time
-    
-    The workout data includes exercises with sets, reps, and rest periods.
-    We also track how users actually complete these workouts so we can
-    make future plans even better.
-    
-    Like meal plans, workout data is stored as JSON for flexibility.
-    Equipment requirements are tracked to ensure users can complete
-    the workouts with their available equipment.
-    """
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='workout_plans'
-    )
-    
-    day = models.IntegerField(
-        help_text="Day number in the workout program"
-    )
-    
-    # Workout data
-    exercises = models.JSONField(
-        help_text="List of exercises with sets, reps, and rest periods"
-    )
-    
-    workout_type = models.CharField(
-        max_length=50,
-        choices=[
-            ('strength', 'Strength Training'),
-            ('cardio', 'Cardio'),
-            ('hiit', 'HIIT'),
-            ('flexibility', 'Flexibility'),
-            ('mixed', 'Mixed Workout'),
-        ],
-        default='mixed'
-    )
-    
-    # Duration and intensity
-    estimated_duration = models.IntegerField(
-        help_text="Estimated workout duration in minutes"
-    )
-    
-    # Equipment requirements
-    equipment_needed = models.JSONField(
-        default=list,
-        help_text="List of equipment needed for this workout"
-    )
-    
-    difficulty_level = models.CharField(
-        max_length=20,
-        choices=[
-            ('beginner', 'Beginner'),
-            ('intermediate', 'Intermediate'),
-            ('advanced', 'Advanced'),
-        ],
-        default='beginner'
-    )
-    
-    intensity_score = models.FloatField(
-        default=5.0,
-        help_text="Workout intensity score (1-10)"
-    )
-    
-    # AI metadata
-    generated_by_ai = models.BooleanField(default=True)
-    adaptation_score = models.FloatField(
-        default=0.0,
-        help_text="How well this workout adapts to user's progress"
-    )
-    
-    # User completion data
-    completed = models.BooleanField(default=False)
-    completion_time = models.DurationField(
-        null=True,
-        blank=True,
-        help_text="Actual time taken to complete workout"
-    )
-    
-    user_rating = models.IntegerField(
-        null=True,
-        blank=True,
-        choices=[(i, i) for i in range(1, 6)],
-        help_text="User workout rating 1-5"
-    )
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'ai_workout_plans'
-        verbose_name = 'Workout Plan'
-        verbose_name_plural = 'Workout Plans'
-        unique_together = ['user', 'day']
-        ordering = ['day']
-    
-    def __str__(self):
-        return f"{self.user.username}'s Workout - Day {self.day}"
-
-
 class AIChatHistory(models.Model):
     """
     Records conversations between users and our AI fitness assistant.
@@ -407,6 +228,12 @@ class AIChatHistory(models.Model):
         help_text="AI confidence in response accuracy (0-1)"
     )
     
+    ai_provider_used = models.CharField(
+        max_length=50,
+        default='rule-based',
+        help_text="Which AI provider was used for this response"
+    )
+    
     # User feedback
     helpful = models.BooleanField(
         null=True,
@@ -428,22 +255,15 @@ class AIChatHistory(models.Model):
 
 class ProgressTracking(models.Model):
     """
-    Tracks user progress and provides AI-powered insights.
+    Tracks overall user progress and provides AI-powered insights.
     
-    This model captures the hard data: weight, body fat, muscle mass,
-    workout consistency, and calories burned. But it doesn't just store
-    numbers - our AI analyzes this data to provide:
-    
-    - Progress scores (0-100) that summarize overall improvement
-    - Achievement badges for milestones
-    - Personalized insights and recommendations
-    - Predictions for future progress
-    
-    We create a new record whenever there's meaningful progress data
-    to track, so we can see trends over time.
+    This model captures comprehensive progress data that spans
+    both workout and nutrition domains. It serves as the central
+    repository for AI analysis and recommendations.
     
     The AI insights field contains natural language recommendations
-    based on the user's actual progress and patterns.
+    based on the user's actual progress and patterns across all
+    aspects of their fitness journey.
     """
     user = models.ForeignKey(
         User,
@@ -461,10 +281,16 @@ class ProgressTracking(models.Model):
     total_workouts = models.IntegerField(default=0)
     calories_burned = models.IntegerField(default=0)
     
+    # Nutrition metrics
+    nutrition_adherence = models.FloatField(
+        default=0.0,
+        help_text="How well user follows nutrition plans (0-100)"
+    )
+    
     # AI insights
     progress_score = models.FloatField(
         default=0.0,
-        help_text="AI-calculated progress score (0-100)"
+        help_text="AI-calculated overall progress score (0-100)"
     )
     
     achievement_badges = models.JSONField(
@@ -488,83 +314,3 @@ class ProgressTracking(models.Model):
     
     def __str__(self):
         return f"{self.user.username}'s Progress - {self.created_at.strftime('%Y-%m-%d')}"
-
-
-class WorkoutPreferences(models.Model):
-    """
-    Stores user workout preferences for AI personalization.
-    
-    This model captures how users like to work out so our AI can
-    create better personalized plans. We track:
-    
-    - What equipment they have available
-    - Their preferred difficulty level
-    - What types of workouts they enjoy most
-    
-    The AI uses these preferences to:
-    - Generate workout plans that match their equipment
-    - Adjust difficulty based on their comfort level
-    - Focus on workout types they're more likely to complete
-    
-    These preferences can be updated anytime as users get more
-    experienced or their equipment situation changes.
-    """
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='workout_preferences'
-    )
-    
-    # Preferred difficulty level
-    difficulty_level = models.CharField(
-        max_length=20,
-        choices=[
-            ('beginner', 'Beginner'),
-            ('intermediate', 'Intermediate'),
-            ('advanced', 'Advanced'),
-        ],
-        default='beginner',
-        help_text="User's preferred workout difficulty level"
-    )
-    
-    # Workout type preferences
-    workout_type_preference = models.CharField(
-        max_length=50,
-        choices=[
-            ('strength', 'Strength Training'),
-            ('cardio', 'Cardio'),
-            ('hiit', 'HIIT'),
-            ('flexibility', 'Flexibility'),
-            ('mixed', 'Mixed Workout'),
-        ],
-        default='mixed',
-        help_text="User's preferred type of workout"
-    )
-    
-    # Session preferences
-    preferred_session_duration = models.IntegerField(
-        default=30,
-        help_text="Preferred workout duration in minutes"
-    )
-    
-    preferred_workout_days_per_week = models.IntegerField(
-        default=3,
-        help_text="Number of workout days preferred per week"
-    )
-    
-    # Equipment availability
-    equipment_available = models.JSONField(
-        default=list,
-        help_text="List of equipment available to the user"
-    )
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'ai_workout_preferences'
-        verbose_name = 'Workout Preferences'
-        verbose_name_plural = 'Workout Preferences'
-    
-    def __str__(self):
-        return f"{self.user.username}'s Workout Preferences"

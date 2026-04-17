@@ -16,38 +16,25 @@ from django.db import models
 
 class User(AbstractUser):
     """
-    Custom User model extending Django's AbstractUser.
-    This allows us to add custom fields in the future if needed.
+    Custom user model that uses email instead of username for login.
+    
+    Most people remember their email better than a username, so we made
+    email the primary identifier. Username is still kept for display purposes
+    since some users prefer having a public handle.
+    
+    Note: All fitness-related user data (height, weight, goals, etc.)
+    should go in the UserProfile model, not here.
     """
-    email = models.EmailField(unique=True,)
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
-    date_of_birth = models.DateField(blank=True, null=True)
-    profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
+    email = models.EmailField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    # Additional fields for fitness app
-    height = models.FloatField(blank=True, null=True, help_text="Height in cm")
-    weight = models.FloatField(blank=True, null=True, help_text="Weight in kg")
-    fitness_goal = models.CharField(
-        max_length=50,
-        blank=True,
-        null=True,
-        choices=[
-            ('weight_loss', 'Weight Loss'),
-            ('muscle_gain', 'Muscle Gain'),
-            ('maintenance', 'Maintenance'),
-            ('endurance', 'Endurance'),
-        ]
-    )
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
     
     class Meta:
         db_table = 'users'
-        # verbose_name = 'User'
-        # verbose_name_plural = 'Users'
     
     def __str__(self):
-        return self.username
+        # Show username in admin interface, fallback to email if username is empty
+        return self.username or self.email

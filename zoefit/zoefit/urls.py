@@ -22,6 +22,11 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),  # Authentication module
+    path('api/users/', include('users.urls')),  # User management module
+    path('api/ai/', include('ai_features.urls')),  # Core AI features (health metrics, chatbot, insights)
+    path('api/workout/', include('workout.urls')),  # Workout-specific features
+    path('api/nutrition/', include('nutrition.urls')),  # Nutrition-specific features
+    path('api/frontend/', include('frontend.urls')),  # Frontend features and data visualization
     # path('api/', include('api.urls')),  # Commented out - will be used for other modules
 ]
 

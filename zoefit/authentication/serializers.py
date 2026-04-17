@@ -1,11 +1,17 @@
 """
-Authentication Module - Serializers
+API serializers for user authentication
 
 This module contains all serializers for the authentication API.
 Serializers handle:
 - User registration with validation
 - User login with authentication
 - User profile data serialization
+
+These serializers convert user data between Python objects and JSON.
+They also handle validation - making sure passwords match, emails are valid, etc.
+
+Think of serializers as translators: they take complex Python objects
+and turn them into simple JSON that the frontend can understand.
 """
 
 from rest_framework import serializers
@@ -16,7 +22,16 @@ from .models import User
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     """
-    Serializer for user registration.
+    Handles new user sign-ups.
+    
+    We collect the minimum info needed to create an account:
+    - username: for display purposes (optional, can be auto-generated)
+    - email: for login and communications (required)
+    - password: for security (required)
+    - password2: to catch typos (required)
+    
+    The serializer automatically hashes passwords, so we never store
+    plain text passwords in the database.
     """
     password = serializers.CharField(
         write_only=True,
@@ -39,27 +54,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'email',
             'password',
             'password2',
-            'first_name',
-            'last_name',
-            'phone_number',
-            'date_of_birth',
-            'height',
-            'weight',
-            'fitness_goal'
         )
-        extra_kwargs = {
-            'first_name': {'required': False},
-            'last_name': {'required': False},
-            'phone_number': {'required': False},
-            'date_of_birth': {'required': False},
-            'height': {'required': False},
-            'weight': {'required': False},
-            'fitness_goal': {'required': False},
-        }
     
     def validate(self, attrs):
         """
-        Validate that passwords match.
+        Make sure both password fields match.
+        
+        It's easy to make a typo when entering a password, so we ask
+        twice and compare. This prevents users from locking themselves out.
         """
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError(
@@ -69,7 +71,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """
-        Create and return a new user instance.
+        Create the new user account.
+        
+        We use Django's create_user() method which automatically:
+        - Hashes the password using bcrypt
+        - Sets up the user properly in the database
+        - Handles all the security stuff we don't want to mess with
         """
         validated_data.pop('password2')
         password = validated_data.pop('password')
@@ -80,7 +87,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 class UserLoginSerializer(serializers.Serializer):
     """
-    Serializer for user login.
+    Handles user login requests.
+    
+    Simple and straightforward - just need email and password.
+    If they match, we return the user object for the view to create tokens.
+    
+    We don't store any session data here - that's handled by JWT tokens
+    in the view layer.
     """
     email = serializers.EmailField(required=True)
     password = serializers.CharField(
@@ -91,7 +104,12 @@ class UserLoginSerializer(serializers.Serializer):
     
     def validate(self, attrs):
         """
-        Validate user credentials.
+        Check if the email and password combination is valid.
+        
+        Uses Django's built-in authenticate() function which:
+        - Checks the password against the stored hash
+        - Verifies the user account is active
+        - Returns None if anything doesn't match
         """
         email = attrs.get('email')
         password = attrs.get('password')
@@ -105,43 +123,23 @@ class UserLoginSerializer(serializers.Serializer):
             )
             
             if not user:
+                # Either the email doesn't exist or password is wrong
+                # We don't specify which to prevent email enumeration attacks
                 raise serializers.ValidationError(
-                    'Unable to log in with provided credentials.'
+                    'Invalid email or password. Please try again.'
                 )
             
             if not user.is_active:
+                # User account has been deactivated
                 raise serializers.ValidationError(
-                    'User account is disabled.'
+                    'This account has been disabled. Contact support if this is a mistake.'
                 )
             
             attrs['user'] = user
             return attrs
         else:
+            # Missing required fields
             raise serializers.ValidationError(
-                'Must include "email" and "password".'
+                'Please provide both email and password to login.'
             )
-
-
-class UserProfileSerializer(serializers.ModelSerializer):
-    """
-    Serializer for user profile information.
-    """
-    class Meta:
-        model = User
-        fields = (
-            'id',
-            'username',
-            'email',
-            'first_name',
-            'last_name',
-            'phone_number',
-            'date_of_birth',
-            'profile_picture',
-            'height',
-            'weight',
-            'fitness_goal',
-            'created_at',
-            'updated_at'
-        )
-        read_only_fields = ('id', 'email', 'created_at', 'updated_at')
 

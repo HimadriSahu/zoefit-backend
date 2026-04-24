@@ -28,9 +28,31 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .models import HealthMetrics, AIChatHistory, ProgressTracking
-from .chatbot import EnhancedAIChatbot
-from .advanced_ai import AdvancedAIEngine
-from .analytics import AIAnalytics
+from .ai_engine import AIRecommendationEngine
+from nutrition.models import MealPlan
+try:
+    from .ml_performance import MLPerformanceLog, MLPredictionFeedback, MLModelMetrics
+except ImportError:
+    # Fallback if ml_performance module doesn't exist
+    MLPerformanceLog = None
+    MLPredictionFeedback = None
+    MLModelMetrics = None
+try:
+    from .chatbot import EnhancedAIChatbot
+except ImportError:
+    EnhancedAIChatbot = None
+try:
+    from .advanced_ai import AdvancedAIEngine
+except ImportError:
+    AdvancedAIEngine = None
+try:
+    from .analytics import AIAnalytics
+except ImportError:
+    AIAnalytics = None
+try:
+    from nutrition.ml.ml_engine import ml_nutrition_engine
+except ImportError:
+    ml_nutrition_engine = None
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +119,21 @@ def create_or_update_health_metrics(request):
         user = request.user
         
         # Get existing metrics or create new ones
+        height = request.data.get('height')
+        weight = request.data.get('weight')
+        
+        # Calculate BMI if we have both height and weight
+        bmi = None
+        if height and weight:
+            height_in_meters = float(height) / 100
+            bmi = round(float(weight) / (height_in_meters ** 2), 2)
+        
         metrics, created = HealthMetrics.objects.get_or_create(
             user=user,
             defaults={
-                'height': request.data.get('height'),
-                'weight': request.data.get('weight'),
+                'height': height,
+                'weight': weight,
+                'bmi': bmi,
                 'fitness_goal': request.data.get('fitness_goal', 'maintenance'),
                 'activity_level': request.data.get('activity_level', 'moderate'),
                 'dietary_preferences': request.data.get('dietary_preferences', {}),
@@ -203,12 +235,15 @@ def generate_meal_plan(request):
             return Response({
                 'message': 'Meal plan already exists for this date',
                 'meal_plan': {
+                    'id': existing_plan.id,
                     'date': existing_plan.date,
                     'meals': existing_plan.meals,
                     'total_calories': existing_plan.total_calories,
                     'protein': existing_plan.protein,
                     'carbs': existing_plan.carbs,
-                    'fat': existing_plan.fat
+                    'fat': existing_plan.fat,
+                    'confidence_score': existing_plan.confidence_score,
+                    'approach': existing_plan.approach or 'existing_plan'
                 }
             }, status=status.HTTP_200_OK)
         
@@ -225,7 +260,8 @@ def generate_meal_plan(request):
             protein=meal_plan_data['protein'],
             carbs=meal_plan_data['carbs'],
             fat=meal_plan_data['fat'],
-            confidence_score=meal_plan_data['confidence_score']
+            confidence_score=meal_plan_data['confidence_score'],
+            approach=meal_plan_data.get('approach', 'ml_based')
         )
         
         return Response({
@@ -238,7 +274,8 @@ def generate_meal_plan(request):
                 'protein': meal_plan.protein,
                 'carbs': meal_plan.carbs,
                 'fat': meal_plan.fat,
-                'confidence_score': meal_plan.confidence_score
+                'confidence_score': meal_plan.confidence_score,
+                'approach': meal_plan.approach
             }
         }, status=status.HTTP_201_CREATED)
         
@@ -837,8 +874,146 @@ def get_user_analytics(request):
         
     except Exception as e:
         return Response({
-            'error': f'Something went wrong while updating your profile: {str(e)}'
+            'error': f'Something went wrong while getting user analytics: {str(e)}'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_advanced_ml_analytics(request, period_days):
+    """
+    Get advanced ML analytics with predictive insights and adaptation status.
+    """
+    try:
+        user = request.user
+        period = int(period_days)
+        
+        # Get basic performance metrics
+        performance_logs = MLPerformanceLog.objects.filter(
+            user=user,
+            created_at__gte=datetime.now() - timedelta(days=period)
+        )
+        
+        # Calculate performance metrics
+        total_predictions = performance_logs.count()
+        successful_predictions = performance_logs.filter(success=True).count()
+        success_rate = successful_predictions / total_predictions if total_predictions > 0 else 0
+        
+        avg_confidence = performance_logs.aggregate(
+            avg_confidence=Avg('confidence_score')
+        )['avg_confidence'] or 0
+        
+        avg_processing_time = performance_logs.aggregate(
+            avg_time=Avg('processing_time')
+        )['avg_time'] or 0
+        
+        # Get user feedback metrics
+        feedbacks = MLPredictionFeedback.objects.filter(
+            performance_log__user=user,
+            created_at__gte=datetime.now() - timedelta(days=period)
+        )
+        
+        avg_user_rating = feedbacks.aggregate(
+            avg_rating=Avg('rating')
+        )['avg_rating'] or 0
+        
+        satisfied_users = feedbacks.filter(rating__gte=4).count()
+        user_satisfaction = satisfied_users / feedbacks.count() if feedbacks.count() > 0 else 0
+        
+        # Calculate approach distribution
+        approach_distribution = performance_logs.values('approach').annotate(
+            count=Count('approach')
+        ).order_by('-count')
+        
+        approach_counts = {}
+        for item in approach_distribution:
+            approach_counts[item['approach']] = item['count']
+        
+        # Get ML vs Rule comparison
+        ml_logs = performance_logs.filter(approach='ml_based')
+        rule_logs = performance_logs.filter(approach='rule_based')
+        
+        ml_success_rate = ml_logs.filter(success=True).count() / ml_logs.count() if ml_logs.count() > 0 else 0
+        rule_success_rate = rule_logs.filter(success=True).count() / rule_logs.count() if rule_logs.count() > 0 else 0
+        
+        ml_feedbacks = feedbacks.filter(performance_log__approach='ml_based')
+        rule_feedbacks = feedbacks.filter(performance_log__approach='rule_based')
+        
+        ml_avg_rating = ml_feedbacks.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
+        rule_avg_rating = rule_feedbacks.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
+        
+        ml_avg_confidence = ml_logs.aggregate(avg_confidence=Avg('confidence_score'))['avg_confidence'] or 0
+        rule_avg_confidence = rule_logs.aggregate(avg_confidence=Avg('confidence_score'))['avg_confidence'] or 0
+        
+        # Get user's health metrics for predictive insights
+        try:
+            metrics = HealthMetrics.objects.filter(user=user).latest('created_at')
+            
+            # Generate predictive insights using ML engine
+            insights = ml_nutrition_engine._generate_predictive_insights(metrics, date.today())
+            
+            # Get adaptation status
+            recent_feedback = feedbacks.order_by('-created_at')[:10]
+            adaptation_active = len(recent_feedback) >= 10
+            
+            adaptation_factor = 0
+            if adaptation_active and recent_feedback:
+                avg_rating = recent_feedback.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
+                adaptation_factor = avg_rating / 5.0  # Normalize to 0-1
+            
+            last_adaptation = 'Recently' if adaptation_active else 'Never'
+            
+        except HealthMetrics.DoesNotExist:
+            insights = {
+                'trend_analysis': {'status': 'no_data', 'message': 'No health metrics available'},
+                'goal_projection': {'status': 'no_data', 'message': 'No health metrics available'},
+                'recommendation_trends': {'status': 'no_data', 'message': 'No health metrics available'},
+                'seasonal_insights': {'status': 'no_data', 'message': 'No health metrics available'},
+                'performance_forecast': {'status': 'no_data', 'message': 'No health metrics available'}
+            }
+            adaptation_active = False
+            adaptation_factor = 0
+            last_adaptation = 'Never'
+        
+        response_data = {
+            'performance_metrics': {
+                'total_predictions': total_predictions,
+                'success_rate': success_rate,
+                'avg_confidence': avg_confidence,
+                'avg_user_rating': avg_user_rating,
+                'user_satisfaction': user_satisfaction,
+                'avg_processing_time': avg_processing_time
+            },
+            'approach_distribution': {
+                'ml_based': approach_counts.get('ml_based', 0),
+                'rule_based': approach_counts.get('rule_based', 0),
+                'hybrid': approach_counts.get('hybrid', 0),
+                'emergency_fallback': approach_counts.get('emergency_fallback', 0)
+            },
+            'ml_vs_rule_comparison': {
+                'ml_success_rate': ml_success_rate,
+                'rule_success_rate': rule_success_rate,
+                'ml_avg_rating': ml_avg_rating,
+                'rule_avg_rating': rule_avg_rating,
+                'ml_avg_confidence': ml_avg_confidence,
+                'rule_avg_confidence': rule_avg_confidence
+            },
+            'predictive_insights': insights,
+            'adaptation_status': {
+                'adaptation_active': adaptation_active,
+                'adaptation_factor': adaptation_factor,
+                'feedback_count': len(recent_feedback) if 'recent_feedback' in locals() else 0,
+                'last_adaptation': last_adaptation
+            }
+        }
+        
+        return Response(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error in get_advanced_ml_analytics: {str(e)}")
+        return Response({
+            'error': f'Failed to load advanced analytics: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])

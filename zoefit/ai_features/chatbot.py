@@ -458,43 +458,59 @@ class EnhancedAIChatbot:
         
     def _initialize_ai_clients(self):
         """Initialize AI clients based on availability and configuration."""
+        import os
+        
         # Initialize OpenAI
         openai_key = getattr(settings, 'OPENAI_API_KEY', None)
         
         # Fallback: try to get from environment directly if settings doesn't have it
         if not openai_key:
-            import os
             openai_key = os.environ.get('OPENAI_API_KEY')
         
+        logger.info(f"=== AI CLIENT INITIALIZATION DEBUG ===")
         logger.info(f"OpenAI library available: {OPENAI_AVAILABLE}")
+        logger.info(f"OpenAI key from settings: {bool(getattr(settings, 'OPENAI_API_KEY', None))}")
+        logger.info(f"OpenAI key from env: {bool(os.environ.get('OPENAI_API_KEY'))}")
         logger.info(f"OpenAI key present: {bool(openai_key)}")
         if openai_key:
+            logger.info(f"OpenAI key length: {len(openai_key)}")
             logger.info(f"OpenAI key format: {openai_key[:10]}...{openai_key[-10:] if len(openai_key) > 20 else 'invalid'}")
             logger.info(f"OpenAI key starts with 'sk-': {openai_key.startswith('sk-')}")
+            logger.info(f"OpenAI key stripped: {bool(openai_key.strip())}")
         
         if OPENAI_AVAILABLE and openai_key and openai_key.strip() and (openai_key.startswith('sk-') or openai_key.startswith('sk-proj-')):
             try:
                 self.openai_client = openai.OpenAI(api_key=openai_key)
-                logger.info("OpenAI client initialized successfully")
+                logger.info("✅ OpenAI client initialized successfully")
+                # Test the client with a simple request
+                try:
+                    test_response = self.openai_client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": "test"}],
+                        max_tokens=5
+                    )
+                    logger.info("✅ OpenAI client test successful")
+                except Exception as test_e:
+                    logger.error(f"❌ OpenAI client test failed: {test_e}")
+                    self.openai_client = None
             except Exception as e:
-                logger.error(f"Failed to initialize OpenAI client: {e}")
+                logger.error(f"❌ Failed to initialize OpenAI client: {e}")
                 self.openai_client = None
         else:
             if not OPENAI_AVAILABLE:
-                logger.warning("OpenAI not available: library not installed - will use enhanced rule-based responses")
+                logger.warning("❌ OpenAI not available: library not installed - will use enhanced rule-based responses")
             elif not openai_key:
-                logger.warning("OpenAI not available: no API key configured - will use enhanced rule-based responses")
+                logger.warning("❌ OpenAI not available: no API key configured - will use enhanced rule-based responses")
             elif not openai_key.strip():
-                logger.warning("OpenAI not available: API key is empty - will use enhanced rule-based responses")
+                logger.warning("❌ OpenAI not available: API key is empty - will use enhanced rule-based responses")
             elif not openai_key.startswith('sk-'):
-                logger.warning(f"OpenAI not available: API key has invalid format (starts with: {openai_key[:5] if openai_key else 'none'}) - will use enhanced rule-based responses")
+                logger.warning(f"❌ OpenAI not available: API key has invalid format (starts with: {openai_key[:5] if openai_key else 'none'}) - will use enhanced rule-based responses")
         
         # Initialize Gemini
         gemini_key = getattr(settings, 'GEMINI_API_KEY', None)
         
         # Fallback: try to get from environment directly if settings doesn't have it
         if not gemini_key:
-            import os
             gemini_key = os.environ.get('GEMINI_API_KEY')
         
         logger.info(f"Gemini library available: {GEMINI_AVAILABLE}")
@@ -548,6 +564,11 @@ class EnhancedAIChatbot:
             response_data = self._generate_ai_response(intent, cleaned_message, metrics, conversation_history)
             
             # Enhanced fallback logic with multiple attempts
+            logger.info(f"AI response received: {response_data is not None}")
+            if response_data:
+                logger.info(f"AI response confidence: {response_data.get('confidence', 0)}")
+                logger.info(f"AI response provider: {response_data.get('provider', 'unknown')}")
+            
             if not response_data or response_data.get('confidence', 0) < 0.5:
                 logger.warning(f"AI response confidence low ({response_data.get('confidence', 0) if response_data else 0}), trying rule-based fallback")
                 response_data = self._generate_rule_based_response(intent, cleaned_message, metrics)
@@ -600,6 +621,9 @@ class EnhancedAIChatbot:
             logger.warning("No AI clients available - falling back to rule-based responses")
             return None
         
+        logger.info(f"AI clients available - OpenAI: {bool(self.openai_client)}, Gemini: {bool(self.gemini_model)}")
+        logger.info(f"AI provider preference: {self.ai_provider}")
+        
         # Build enhanced context-aware prompt
         context = self._build_context(intent, message, metrics, conversation_history)
         
@@ -628,6 +652,8 @@ class EnhancedAIChatbot:
             temperature = getattr(settings, 'AI_CHAT_TEMPERATURE', 0.8)
             
             logger.info(f"Calling OpenAI API with model: {model_name}")
+            logger.info(f"Context length: {len(context)} characters")
+            logger.info(f"System prompt length: {len(self.system_prompts.get(intent, self.system_prompts['default']))} characters")
             
             response = self.openai_client.chat.completions.create(
                 model=model_name,
@@ -643,7 +669,7 @@ class EnhancedAIChatbot:
             )
             
             response_text = response.choices[0].message.content.strip()
-            logger.info(f"OpenAI response received successfully")
+            logger.info(f"OpenAI response received successfully: {response_text[:100]}...")
             
             # Add safety disclaimer for medical questions
             if intent == 'medical_question':

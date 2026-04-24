@@ -273,7 +273,7 @@ def weekly_report(request):
                 'avg_daily_calories': week_logs.aggregate(
                     avg_calories=models.Avg('total_calories')
                 )['avg_calories'] or 0 if week_logs.exists() else 0,
-                'target_calories': user.healthmetrics.calculate_daily_calories(),
+                'target_calories': user.health_metrics.calculate_daily_calories(),
                 'meals': [
                     {
                         'date': meal.date.isoformat(),
@@ -314,7 +314,7 @@ def progress_insights(request):
         progress = ProgressSyncService.update_user_progress(request.user)
         
         # Get additional context for insights
-        health_metrics = request.user.healthmetrics
+        health_metrics = request.user.health_metrics
         
         # Get recent trends
         thirty_days_ago = timezone.now() - timedelta(days=30)
@@ -408,7 +408,7 @@ def _generate_nutrition_recommendations(user, recent_logs):
         
         # Check calorie consistency
         avg_calories = recent_logs.aggregate(avg_calories=models.Avg('total_calories'))['avg_calories']
-        target_calories = user.healthmetrics.calculate_daily_calories()
+        target_calories = user.health_metrics.calculate_daily_calories()
         
         if avg_calories and target_calories:
             if abs(avg_calories - target_calories) > 300:
@@ -416,7 +416,7 @@ def _generate_nutrition_recommendations(user, recent_logs):
         
         # Check protein intake
         avg_protein = recent_logs.aggregate(avg_protein=models.Avg('total_protein'))['avg_protein']
-        if avg_protein and avg_protein < (user.healthmetrics.weight * 1.6):  # 1.6g per kg for active people
+        if avg_protein and avg_protein < (user.health_metrics.weight * 1.6):  # 1.6g per kg for active people
             recommendations.append("Consider increasing your protein intake for better muscle recovery.")
     
     return recommendations
@@ -425,7 +425,7 @@ def _generate_nutrition_recommendations(user, recent_logs):
 def _calculate_goal_probability(user, progress):
     """Calculate probability of achieving fitness goal."""
     try:
-        health_metrics = user.healthmetrics
+        health_metrics = user.health_metrics
         
         if not health_metrics.target_weight:
             return 0.7  # Default probability for maintenance goals

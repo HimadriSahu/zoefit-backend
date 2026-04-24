@@ -39,6 +39,10 @@ def generate_meal_plan(request):
         user = request.user
         target_date = request.data.get('date', date.today())
         
+        # Convert string date to date object if needed
+        if isinstance(target_date, str):
+            target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+        
         # Get user's health metrics
         metrics = get_object_or_404(HealthMetrics, user=user)
         
@@ -64,9 +68,9 @@ def generate_meal_plan(request):
                 }
             }, status=status.HTTP_200_OK)
         
-        # Generate meal plan using AI engine
+        # Generate meal plan using AI engine (ML-based when available)
         ai_engine = AIRecommendationEngine()
-        meal_plan_data = ai_engine.generate_meal_plan(metrics, target_date, dietary_prefs)
+        meal_plan_data = ai_engine.generate_meal_plan(metrics, target_date)
         
         # Create meal plan record
         meal_plan = MealPlan.objects.create(
@@ -90,7 +94,10 @@ def generate_meal_plan(request):
                 'protein': meal_plan.protein,
                 'carbs': meal_plan.carbs,
                 'fat': meal_plan.fat,
-                'confidence_score': meal_plan.confidence_score
+                'confidence_score': meal_plan.confidence_score,
+                'approach': meal_plan_data.get('approach', 'unknown'),
+                'model_version': meal_plan_data.get('model_version', 'unknown'),
+                'model_confidence': meal_plan_data.get('model_confidence', 0.0)
             }
         }, status=status.HTTP_201_CREATED)
         

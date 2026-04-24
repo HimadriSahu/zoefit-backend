@@ -68,6 +68,9 @@ def update_profile_view(request):
     if serializer.is_valid():
         updated_profile = serializer.save()
         
+        # Sync data to HealthMetrics for ML integration
+        _sync_profile_to_health_metrics(request.user, updated_profile)
+        
         # Track profile update activity
         UserActivity.objects.create(
             user=request.user,
@@ -110,6 +113,9 @@ def onboarding_view(request):
             onboarding_completed=True,
             onboarding_completed_at=timezone.now()
         )
+        
+        # Sync data to HealthMetrics for ML integration
+        _sync_profile_to_health_metrics(request.user, updated_profile)
         
         # Track onboarding completion activity
         UserActivity.objects.create(
@@ -394,3 +400,58 @@ def update_contact_info_view(request):
             'email': request.user.email
         }
     }, status=status.HTTP_200_OK)
+
+
+def _sync_profile_to_health_metrics(user, profile):
+    """
+    Sync UserProfile data to HealthMetrics for ML integration.
+    This ensures that ML engine has access to all onboarding data.
+    """
+    from ai_features.models import HealthMetrics
+    
+    try:
+        # Calculate BMI if we have both height and weight
+        if profile.height and profile.weight:
+            height_in_meters = float(profile.height) / 100
+            bmi = round(float(profile.weight) / (height_in_meters ** 2), 2)
+        else:
+            # If we don't have height/weight, don't create HealthMetrics yet
+            # It will be created when the user provides this data
+            return
+        
+        # Get or create HealthMetrics
+        health_metrics, created = HealthMetrics.objects.get_or_create(
+            user=user,
+            defaults={
+                'height': profile.height,
+                'weight': profile.weight,
+                'bmi': bmi,
+                'fitness_goal': profile.fitness_goal or 'maintenance',
+                'activity_level': profile.activity_level or 'moderate',
+                'dietary_preferences': profile.dietary_preferences or {},
+                'medical_conditions': profile.medical_conditions or [],
+                'allergies': profile.allergies or [],
+                'target_weight': profile.target_weight,
+            }
+        )
+        
+        if not created:
+            # Update existing HealthMetrics with profile data
+            health_metrics.height = profile.height
+            health_metrics.weight = profile.weight
+            health_metrics.fitness_goal = profile.fitness_goal or health_metrics.fitness_goal
+            health_metrics.activity_level = profile.activity_level or health_metrics.activity_level
+            health_metrics.dietary_preferences = profile.dietary_preferences or health_metrics.dietary_preferences
+            health_metrics.medical_conditions = profile.medical_conditions or health_metrics.medical_conditions
+            health_metrics.allergies = profile.allergies or health_metrics.allergies
+            health_metrics.target_weight = profile.target_weight or health_metrics.target_weight
+            
+            # Auto-calculate BMI if we have height and weight
+            if health_metrics.height and health_metrics.weight:
+                health_metrics.bmi = health_metrics.calculate_bmi()
+        
+        health_metrics.save()
+        
+    except Exception as e:
+        # Log error but don't fail the onboarding process
+        print(f"Error syncing profile to health metrics: {e}")

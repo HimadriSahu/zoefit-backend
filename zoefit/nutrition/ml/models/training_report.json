@@ -1,0 +1,31 @@
+{
+  "training_date": "2026-04-21T00:01:12.074564",
+  "status": "success",
+  "model_version": "enhanced_v2.0_simple",
+  "data_quality": {
+    "total_samples": 2000,
+    "features_count": 26
+  },
+  "model_performance": {
+    "macro_prediction": {
+      "mse": 612.1981215233959,
+      "mae": 10.537554063860481,
+      "r2_score": 0.9934855235973526,
+      "cv_score": 0.9922451218262459
+    },
+    "meal_recommendation": {
+      "mse": 3493.175260259763,
+      "mae": 27.84091990916915,
+      "r2_score": 0.6749946858373632,
+      "cv_score": 0.6838605249174562
+    }
+  },
+  "improvements": {
+    "previous_r2_macro": 0.5,
+    "previous_r2_meal": 0.51,
+    "current_r2_macro": 0.9934855235973526,
+    "current_r2_meal": 0.6749946858373632,
+    "improvement_macro": 0.49348552359735265,
+    "improvement_meal": 0.1649946858373632
+  }
+}

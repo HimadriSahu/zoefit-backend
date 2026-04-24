@@ -141,7 +141,7 @@ class AdvancedAIEngine:
     def _predict_weight(self, user, trend: float, days: int) -> List[float]:
         """Predict weight changes over time."""
         try:
-            current_weight = user.healthmetrics.weight
+            current_weight = user.health_metrics.weight
             predictions = []
             
             for day in range(1, days + 1):
@@ -150,7 +150,7 @@ class AdvancedAIEngine:
             
             return predictions
         except:
-            return [user.healthmetrics.weight] * days
+            return [user.health_metrics.weight] * days
     
     def _predict_workout_completion(self, trend: float, days: int) -> List[float]:
         """Predict workout completion rates."""
@@ -166,7 +166,7 @@ class AdvancedAIEngine:
     def _calculate_goal_probability(self, user, progress_data: List) -> float:
         """Calculate probability of achieving fitness goal."""
         try:
-            metrics = user.healthmetrics
+            metrics = user.health_metrics
             target_weight = metrics.target_weight or metrics.weight
             
             if len(progress_data) < 2:
@@ -197,7 +197,7 @@ class AdvancedAIEngine:
         recommendations = []
         
         try:
-            metrics = user.healthmetrics
+            metrics = user.health_metrics
             
             # Workout consistency
             if len(progress_data) >= 2:

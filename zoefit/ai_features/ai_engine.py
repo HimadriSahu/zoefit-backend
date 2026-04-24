@@ -31,6 +31,22 @@ from .models import HealthMetrics
 from workout.exercise_data import WORKOUT_TEMPLATES, EXERCISE_DATABASE
 from nutrition.nutrition_data import MEAL_TEMPLATES, FOOD_DATABASE
 
+# Import ML-based nutrition engine
+try:
+    from nutrition.ml.ml_engine import ml_nutrition_engine
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+    print("Warning: ML nutrition engine not available, using rule-based fallback")
+
+# Import ML monitoring
+try:
+    from .ml_monitoring import monitor_ml_performance
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    print("Warning: ML monitoring not available")
+
 
 class AIRecommendationEngine:
     """
@@ -57,59 +73,40 @@ class AIRecommendationEngine:
         self.exercise_database = EXERCISE_DATABASE
         self.workout_templates = WORKOUT_TEMPLATES
         
+    @monitor_ml_performance(model_type='nutrition') if MONITORING_AVAILABLE else lambda f: f
     def generate_meal_plan(self, metrics: HealthMetrics, target_date: date) -> Dict[str, Any]:
         """
         Generate personalized meal plan based on user metrics and preferences.
+        Uses ML models when available, falls back to rule-based approach.
         """
         try:
-            # Calculate daily nutritional needs
-            daily_calories = metrics.calculate_daily_calories()
+            # Try ML-based approach first
+            if ML_AVAILABLE and hasattr(ml_nutrition_engine, 'generate_ml_meal_plan'):
+                try:
+                    ml_plan = ml_nutrition_engine.generate_ml_meal_plan(metrics, target_date)
+                    
+                    # Add metadata about the approach used
+                    ml_plan['approach'] = 'ml_based'
+                    ml_plan['model_confidence'] = ml_plan.get('confidence_score', 0.5)
+                    
+                    return ml_plan
+                    
+                except Exception as ml_error:
+                    print(f"ML meal plan generation failed: {ml_error}")
+                    print("Falling back to rule-based approach...")
             
-            # Calculate macronutrient distribution based on fitness goal
-            macro_split = self._calculate_macro_split(metrics.fitness_goal)
-            
-            # Get dietary preferences and restrictions
-            preferences = metrics.dietary_preferences or {}
-            allergies = metrics.allergies or []
-            medical_conditions = metrics.medical_conditions or []
-            
-            # Select appropriate meal template
-            meal_template = self._select_meal_template(
-                daily_calories, 
-                preferences, 
-                allergies, 
-                medical_conditions
-            )
-            
-            # Generate meals for the day
-            meals = self._generate_daily_meals(
-                meal_template, 
-                daily_calories, 
-                macro_split,
-                preferences,
-                allergies
-            )
-            
-            # Calculate total macros
-            total_macros = self._calculate_meal_macros(meals)
-            
-            # Calculate confidence score
-            confidence_score = self._calculate_meal_confidence(
-                metrics, meals, total_macros
-            )
-            
-            return {
-                'meals': meals,
-                'total_calories': total_macros['calories'],
-                'protein': total_macros['protein'],
-                'carbs': total_macros['carbs'],
-                'fat': total_macros['fat'],
-                'confidence_score': confidence_score
-            }
+            # Rule-based fallback
+            rule_plan = self._generate_rule_based_meal_plan(metrics, target_date)
+            rule_plan['approach'] = 'rule_based'
+            rule_plan['model_confidence'] = 0.5  # Default confidence for rule-based
+            return rule_plan
             
         except Exception as e:
-            # Fallback to basic meal plan
-            return self._generate_fallback_meal_plan(metrics, target_date)
+            print(f"Error in meal plan generation: {e}")
+            emergency_plan = self._generate_emergency_fallback_plan(metrics, target_date)
+            emergency_plan['approach'] = 'emergency_fallback'
+            emergency_plan['model_confidence'] = 0.1
+            return emergency_plan
     
     def _calculate_macro_split(self, fitness_goal: str) -> Dict[str, float]:
         """
@@ -126,37 +123,14 @@ class AIRecommendationEngine:
         return macro_splits.get(fitness_goal, macro_splits['maintenance'])
     
     def _select_meal_template(self, calories: int, preferences: Dict, 
-                            allergies: List, medical_conditions: List) -> Dict:
+                            allergies: List, medical_conditions: List, fitness_goal: str) -> Dict:
         """
-        Select appropriate meal template based on user constraints.
+        Select appropriate meal template based on user constraints and fitness goal.
         """
-        # Determine dietary type
-        dietary_type = preferences.get('diet_type', 'omnivore')
+        # Get template for the specific fitness goal
+        goal_template = self.meal_templates.get(fitness_goal, self.meal_templates.get('maintenance', {}))
         
-        # Filter templates by dietary type
-        suitable_templates = [
-            template for template in self.meal_templates
-            if template['dietary_type'] == dietary_type or dietary_type == 'omnivore'
-        ]
-        
-        # Filter by calorie range
-        calorie_range = self._get_calorie_range(calories)
-        suitable_templates = [
-            template for template in suitable_templates
-            if template['calorie_range'] == calorie_range
-        ]
-        
-        # Filter by medical conditions
-        if medical_conditions:
-            suitable_templates = self._filter_by_medical_conditions(
-                suitable_templates, medical_conditions
-            )
-        
-        # Return best match or default
-        if suitable_templates:
-            return random.choice(suitable_templates)
-        else:
-            return self.meal_templates[0]  # Default template
+        return goal_template
     
     def _get_calorie_range(self, calories: int) -> str:
         """
@@ -246,22 +220,38 @@ class AIRecommendationEngine:
         Generate a single meal with specific foods.
         """
         # Get meal template structure
-        meal_structure = template['meals'].get(meal_type, {})
+        meal_structure = template.get(meal_type, {})
         
-        # Select foods for each component
-        meal_foods = {}
+        if not meal_structure:
+            # Fallback to basic meal structure
+            return self._generate_basic_meal(meal_type, calories, preferences, allergies)
         
-        for component, food_types in meal_structure.items():
-            selected_foods = self._select_foods_for_component(
-                food_types, calories, preferences, allergies
-            )
-            meal_foods[component] = selected_foods
-        
-        return {
-            'name': f"{meal_type.title()} Meal",
-            'foods': meal_foods,
-            'estimated_calories': calories
-        }
+        # Get example meals from template
+        example_meals = meal_structure.get('example_meals', [])
+        if example_meals:
+            # Select a random example meal
+            selected_meal = random.choice(example_meals)
+            meal_name = selected_meal['name']
+            
+            # Generate foods based on meal components
+            meal_components = meal_structure.get('meal_components', [])
+            meal_foods = []
+            
+            for component in meal_components:
+                selected_foods = self._select_foods_for_component_type(
+                    component, calories // len(meal_components), preferences, allergies
+                )
+                meal_foods.extend(selected_foods)
+            
+            return {
+                'name': meal_name,
+                'foods': meal_foods,
+                'estimated_calories': calories,
+                'prep_time': selected_meal.get('prep_time', 30),
+                'difficulty': selected_meal.get('difficulty', 'medium')
+            }
+        else:
+            return self._generate_basic_meal(meal_type, calories, preferences, allergies)
     
     def _select_foods_for_component(self, food_types: List, calories: int, 
                                   preferences: Dict, allergies: List) -> List[Dict]:
@@ -315,6 +305,55 @@ class AIRecommendationEngine:
         if food['calories_per_100g'] > 0:
             return min(500, (target_calories * 100) / food['calories_per_100g'])
         return 100  # Default 100g
+    
+    def _generate_basic_meal(self, meal_type: str, calories: int, preferences: Dict, allergies: List) -> Dict:
+        """
+        Generate a basic meal when template is not available.
+        """
+        # Basic meal components
+        if meal_type == 'breakfast':
+            components = ['protein', 'carb']
+        elif meal_type == 'lunch':
+            components = ['protein', 'carb', 'vegetable']
+        elif meal_type == 'dinner':
+            components = ['protein', 'carb', 'vegetable']
+        else:
+            components = ['protein']
+        
+        meal_foods = []
+        for component in components:
+            selected_foods = self._select_foods_for_component_type(
+                component, calories // len(components), preferences, allergies
+            )
+            meal_foods.extend(selected_foods)
+        
+        return {
+            'name': f"{meal_type.title()} Meal",
+            'foods': meal_foods,
+            'estimated_calories': calories,
+            'prep_time': 20,
+            'difficulty': 'easy'
+        }
+    
+    def _select_foods_for_component_type(self, component_type: str, calories: int, 
+                                       preferences: Dict, allergies: List) -> List[Dict]:
+        """
+        Select foods based on component type (protein, carb, etc).
+        """
+        # Map component types to food types
+        type_mapping = {
+            'protein': ['protein'],
+            'carb': ['carb'],
+            'vegetable': ['vegetable'],
+            'healthy_fat': ['healthy_fat'],
+            'lean_protein': ['protein'],
+            'complex_carb': ['carb'],
+            'protein_source': ['protein'],
+            'fat': ['healthy_fat']
+        }
+        
+        food_types = type_mapping.get(component_type, ['protein'])
+        return self._select_foods_for_component(food_types, calories, preferences, allergies)
     
     def _generate_snacks(self, total_calories: int, preferences: Dict, 
                         allergies: List) -> List[Dict]:
@@ -849,3 +888,211 @@ class AIRecommendationEngine:
             equipment_needed.update(exercise_equipment)
         
         return list(equipment_needed)
+    
+    def _generate_rule_based_meal_plan(self, metrics: HealthMetrics, target_date: date) -> Dict[str, Any]:
+        """
+        Generate meal plan using rule-based approach (original method).
+        """
+        try:
+            # Calculate daily nutritional needs
+            daily_calories = metrics.calculate_daily_calories()
+            
+            # Calculate macronutrient distribution based on fitness goal
+            macro_split = self._calculate_macro_split(metrics.fitness_goal)
+            
+            # Get dietary preferences and restrictions
+            preferences = metrics.dietary_preferences or {}
+            allergies = metrics.allergies or []
+            medical_conditions = metrics.medical_conditions or []
+            
+            # Select appropriate meal template
+            meal_template = self._select_meal_template(
+                daily_calories, 
+                preferences, 
+                allergies, 
+                medical_conditions,
+                metrics.fitness_goal
+            )
+            
+            # Generate meals for the day
+            meals = self._generate_daily_meals(
+                meal_template, 
+                daily_calories, 
+                macro_split,
+                preferences,
+                allergies
+            )
+            
+            # Calculate total macros
+            total_macros = self._calculate_meal_macros(meals)
+            
+            # Calculate confidence score
+            confidence_score = self._calculate_meal_confidence(
+                metrics, meals, total_macros
+            )
+            
+            return {
+                'meals': meals,
+                'total_calories': total_macros['calories'],
+                'protein': total_macros['protein'],
+                'carbs': total_macros['carbs'],
+                'fat': total_macros['fat'],
+                'confidence_score': confidence_score,
+                'approach': 'rule_based',
+                'model_confidence': confidence_score,
+                'prediction_date': target_date.isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error in rule-based meal plan: {e}")
+            return self._generate_emergency_fallback_plan(metrics, target_date)
+    
+    def _generate_emergency_fallback_plan(self, metrics: HealthMetrics, target_date: date) -> Dict[str, Any]:
+        """
+        Generate emergency fallback meal plan when all else fails.
+        """
+        try:
+            # Basic calorie calculation
+            weight = metrics.weight or 70
+            height = metrics.height or 170
+            age = metrics.age or 30
+            gender = metrics.gender or 'male'
+            
+            # Simple BMR calculation
+            if gender == 'male':
+                bmr = 10 * weight + 6.25 * height - 5 * age + 5
+            else:
+                bmr = 10 * weight + 6.25 * height - 5 * age - 161
+            
+            calories = int(bmr * 1.2)  # Sedentary multiplier
+            
+            # Basic macros
+            protein = int(weight * 1.6)
+            fat = int(calories * 0.25 / 9)
+            carbs = int((calories - (protein * 4) - (fat * 9)) / 4)
+            
+            # Generate basic meals
+            meals = [
+                {
+                    'name': 'Basic Breakfast',
+                    'foods': [
+                        {
+                            'name': 'Oatmeal',
+                            'quantity': '50g',
+                            'calories': 200,
+                            'protein': 6,
+                            'carbs': 35,
+                            'fat': 4
+                        },
+                        {
+                            'name': 'Eggs',
+                            'quantity': '2 large',
+                            'calories': 140,
+                            'protein': 12,
+                            'carbs': 1,
+                            'fat': 10
+                        }
+                    ],
+                    'estimated_calories': 340,
+                    'prep_time': 15,
+                    'difficulty': 'easy'
+                },
+                {
+                    'name': 'Basic Lunch',
+                    'foods': [
+                        {
+                            'name': 'Chicken Breast',
+                            'quantity': '150g',
+                            'calories': 250,
+                            'protein': 45,
+                            'carbs': 0,
+                            'fat': 5
+                        },
+                        {
+                            'name': 'Brown Rice',
+                            'quantity': '100g',
+                            'calories': 360,
+                            'protein': 8,
+                            'carbs': 75,
+                            'fat': 3
+                        }
+                    ],
+                    'estimated_calories': 610,
+                    'prep_time': 25,
+                    'difficulty': 'medium'
+                },
+                {
+                    'name': 'Basic Dinner',
+                    'foods': [
+                        {
+                            'name': 'Salmon',
+                            'quantity': '120g',
+                            'calories': 280,
+                            'protein': 25,
+                            'carbs': 0,
+                            'fat': 20
+                        },
+                        {
+                            'name': 'Vegetables',
+                            'quantity': '200g',
+                            'calories': 100,
+                            'protein': 4,
+                            'carbs': 15,
+                            'fat': 2
+                        }
+                    ],
+                    'estimated_calories': 380,
+                    'prep_time': 30,
+                    'difficulty': 'medium'
+                },
+                {
+                    'name': 'Basic Snack',
+                    'foods': [
+                        {
+                            'name': 'Greek Yogurt',
+                            'quantity': '150g',
+                            'calories': 100,
+                            'protein': 15,
+                            'carbs': 8,
+                            'fat': 2
+                        }
+                    ],
+                    'estimated_calories': 100,
+                    'prep_time': 5,
+                    'difficulty': 'easy'
+                }
+            ]
+            
+            return {
+                'meals': meals,
+                'total_calories': calories,
+                'protein': protein,
+                'carbs': carbs,
+                'fat': fat,
+                'confidence_score': 0.3,
+                'approach': 'emergency_fallback',
+                'model_confidence': 0.3,
+                'prediction_date': target_date.isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error in emergency fallback: {e}")
+            
+            # Absolute last resort
+            return {
+                'meals': [{
+                    'name': 'Emergency Meal',
+                    'foods': [{'name': 'Balanced Meal', 'quantity': '1 serving', 'calories': 500}],
+                    'estimated_calories': 500,
+                    'prep_time': 20,
+                    'difficulty': 'medium'
+                }],
+                'total_calories': 2000,
+                'protein': 100,
+                'carbs': 250,
+                'fat': 65,
+                'confidence_score': 0.1,
+                'approach': 'last_resort',
+                'model_confidence': 0.1,
+                'prediction_date': target_date.isoformat()
+            }

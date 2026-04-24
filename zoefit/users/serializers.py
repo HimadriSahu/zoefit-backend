@@ -130,6 +130,16 @@ class OnboardingSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = (
             'gender',
+            'height',
+            'weight',
+            'target_weight',
+            'fitness_goal',
+            'activity_level',
+            'workout_duration',
+            'workout_types',
+            'dietary_preferences',
+            'allergies',
+            'medical_conditions',
         )
     
     def validate_height(self, value):

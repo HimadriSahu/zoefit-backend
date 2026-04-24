@@ -44,7 +44,7 @@ class ProgressSyncService:
                 )
                 
                 # Get latest health metrics
-                health_metrics = user.healthmetrics
+                health_metrics = user.health_metrics
                 
                 # Update basic measurements
                 progress.weight = health_metrics.weight
@@ -154,7 +154,7 @@ class ProgressSyncService:
                     avg_calories=models.Avg('total_calories')
                 )['avg_calories'] or 0,
                 'days_logged': recent_logs.count(),
-                'target_calories': user.healthmetrics.calculate_daily_calories()
+                'target_calories': user.health_metrics.calculate_daily_calories()
             }
         except:
             return {
@@ -310,7 +310,7 @@ class UserDataAggregationService:
         """
         try:
             # Get health metrics
-            health_metrics = user.healthmetrics
+            health_metrics = user.health_metrics
             
             # Get progress tracking (update if needed)
             progress = ProgressSyncService.update_user_progress(user)
@@ -417,7 +417,7 @@ class UserDataAggregationService:
             progress = ProgressSyncService.update_user_progress(user)
             
             # Get health metrics
-            health_metrics = user.healthmetrics
+            health_metrics = user.health_metrics
             
             return {
                 'workouts': {

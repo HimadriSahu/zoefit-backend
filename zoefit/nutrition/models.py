@@ -61,6 +61,24 @@ class MealPlan(models.Model):
         help_text="AI confidence in meal plan quality (0-1)"
     )
     
+    # Approach used for generation
+    approach = models.CharField(
+        max_length=20,
+        choices=[
+            ('ml_based', 'ML Based'),
+            ('rule_based', 'Rule Based'),
+            ('hybrid', 'Hybrid'),
+        ],
+        default='ml_based',
+        help_text="Approach used to generate meal plan"
+    )
+    
+    # Real-time adaptation
+    adaptation_applied = models.BooleanField(
+        default=False,
+        help_text="Whether real-time adaptation was applied"
+    )
+    
     # User feedback
     user_rating = models.IntegerField(
         null=True,

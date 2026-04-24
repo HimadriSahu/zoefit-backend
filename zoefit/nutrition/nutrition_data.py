@@ -549,9 +549,181 @@ MEAL_TEMPLATES = {
                 }
             ]
         }
+    },
+    'endurance': {
+        'breakfast': {
+            'calories_target': 550,
+            'protein_ratio': 0.2,
+            'carbs_ratio': 0.6,
+            'fat_ratio': 0.2,
+            'meal_components': ['complex_carb', 'protein_source', 'fruit'],
+            'example_meals': [
+                {
+                    'name': 'Oatmeal with Banana and Honey',
+                    'ingredients': ['oats', 'banana', 'honey', 'almonds'],
+                    'prep_time': 10,
+                    'difficulty': 'easy'
+                },
+                {
+                    'name': 'Whole Wheat Pancakes with Syrup',
+                    'ingredients': ['whole_wheat_flour', 'banana', 'maple_syrup', 'yogurt'],
+                    'prep_time': 20,
+                    'difficulty': 'easy'
+                }
+            ]
+        },
+        'lunch': {
+            'calories_target': 650,
+            'protein_ratio': 0.25,
+            'carbs_ratio': 0.55,
+            'fat_ratio': 0.2,
+            'meal_components': ['complex_carb', 'lean_protein', 'vegetables'],
+            'example_meals': [
+                {
+                    'name': 'Pasta with Chicken and Vegetables',
+                    'ingredients': ['whole_wheat_pasta', 'chicken_breast', 'mixed_vegetables', 'olive_oil'],
+                    'prep_time': 25,
+                    'difficulty': 'medium'
+                },
+                {
+                    'name': 'Quinoa Buddha Bowl',
+                    'ingredients': ['quinoa', 'chickpeas', 'vegetables', 'tahini'],
+                    'prep_time': 30,
+                    'difficulty': 'medium'
+                }
+            ]
+        },
+        'dinner': {
+            'calories_target': 700,
+            'protein_ratio': 0.3,
+            'carbs_ratio': 0.5,
+            'fat_ratio': 0.2,
+            'meal_components': ['complex_carb', 'protein_source', 'vegetables', 'healthy_fat'],
+            'example_meals': [
+                {
+                    'name': 'Sweet Potato with Black Beans',
+                    'ingredients': ['sweet_potato', 'black_beans', 'vegetables', 'avocado'],
+                    'prep_time': 35,
+                    'difficulty': 'medium'
+                },
+                {
+                    'name': 'Brown Rice with Salmon',
+                    'ingredients': ['brown_rice', 'salmon', 'broccoli', 'olive_oil'],
+                    'prep_time': 30,
+                    'difficulty': 'medium'
+                }
+            ]
+        },
+        'snacks': {
+            'calories_target': 350,
+            'protein_ratio': 0.15,
+            'carbs_ratio': 0.7,
+            'fat_ratio': 0.15,
+            'meal_components': ['complex_carb', 'fruit'],
+            'example_meals': [
+                {
+                    'name': 'Energy Balls',
+                    'ingredients': ['oats', 'dates', 'chia_seeds', 'honey'],
+                    'prep_time': 15,
+                    'difficulty': 'easy'
+                },
+                {
+                    'name': 'Fruit Smoothie',
+                    'ingredients': ['banana', 'berries', 'oats', 'plant_milk'],
+                    'prep_time': 10,
+                    'difficulty': 'easy'
+                }
+            ]
+        }
+    },
+    'strength': {
+        'breakfast': {
+            'calories_target': 600,
+            'protein_ratio': 0.35,
+            'carbs_ratio': 0.4,
+            'fat_ratio': 0.25,
+            'meal_components': ['protein_source', 'complex_carb', 'healthy_fat'],
+            'example_meals': [
+                {
+                    'name': 'Protein Power Bowl',
+                    'ingredients': ['eggs', 'greek_yogurt', 'oats', 'almonds', 'banana'],
+                    'prep_time': 15,
+                    'difficulty': 'easy'
+                },
+                {
+                    'name': 'Muscle Building Scramble',
+                    'ingredients': ['eggs', 'lean_turkey', 'cheese', 'whole_grain_toast'],
+                    'prep_time': 20,
+                    'difficulty': 'medium'
+                }
+            ]
+        },
+        'lunch': {
+            'calories_target': 750,
+            'protein_ratio': 0.4,
+            'carbs_ratio': 0.35,
+            'fat_ratio': 0.25,
+            'meal_components': ['lean_protein', 'complex_carb', 'vegetables', 'healthy_fat'],
+            'example_meals': [
+                {
+                    'name': 'Beef Power Bowl',
+                    'ingredients': ['lean_beef', 'brown_rice', 'vegetables', 'avocado'],
+                    'prep_time': 30,
+                    'difficulty': 'medium'
+                },
+                {
+                    'name': 'Chicken Muscle Builder',
+                    'ingredients': ['chicken_breast', 'quinoa', 'vegetables', 'nuts'],
+                    'prep_time': 35,
+                    'difficulty': 'medium'
+                }
+            ]
+        },
+        'dinner': {
+            'calories_target': 850,
+            'protein_ratio': 0.4,
+            'carbs_ratio': 0.35,
+            'fat_ratio': 0.25,
+            'meal_components': ['protein_source', 'complex_carb', 'vegetables', 'healthy_fat'],
+            'example_meals': [
+                {
+                    'name': 'Steak and Potato Power Meal',
+                    'ingredients': ['lean_steak', 'sweet_potato', 'vegetables', 'butter'],
+                    'prep_time': 40,
+                    'difficulty': 'medium'
+                },
+                {
+                    'name': 'Salmon Muscle Feast',
+                    'ingredients': ['salmon', 'quinoa', 'vegetables', 'olive_oil'],
+                    'prep_time': 35,
+                    'difficulty': 'medium'
+                }
+            ]
+        },
+        'snacks': {
+            'calories_target': 400,
+            'protein_ratio': 0.3,
+            'carbs_ratio': 0.4,
+            'fat_ratio': 0.3,
+            'meal_components': ['protein_source', 'healthy_fat'],
+            'example_meals': [
+                {
+                    'name': 'Protein Shake',
+                    'ingredients': ['protein_powder', 'peanut_butter', 'banana', 'milk'],
+                    'prep_time': 5,
+                    'difficulty': 'easy'
+                },
+                {
+                    'name': 'Greek Yogurt Power Bowl',
+                    'ingredients': ['greek_yogurt', 'nuts', 'seeds', 'honey'],
+                    'prep_time': 5,
+                    'difficulty': 'easy'
+                }
+            ]
+        }
     }
 }
- 
+
 # Dietary restrictions and preferences
 DIETARY_RESTRICTIONS = {
     'vegetarian': {

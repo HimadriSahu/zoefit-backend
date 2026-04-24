@@ -17,9 +17,8 @@ class AiFeaturesConfig(AppConfig):
         # Import models to ensure they're registered
         from . import models
         
-        # Initialize AI engine components
-        from .ai_engine import AIRecommendationEngine
-        from .chatbot import EnhancedAIChatbot
-        
         # Import and connect signals for automatic data synchronization
-        from . import signals
+        try:
+            from . import signals
+        except ImportError:
+            pass  # Signals file may not exist in all environments

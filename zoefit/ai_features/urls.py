@@ -19,7 +19,6 @@ since AI recommendations are personalized to each user.
 
 from django.urls import path
 from . import views
-from . import aggregated_views
 
 app_name = 'ai_features'
 
@@ -56,11 +55,14 @@ urlpatterns = [
     path('analytics/user/', views.get_user_analytics, name='get_user_analytics'),
     path('analytics/system/', views.get_system_analytics, name='get_system_analytics'),
     
-    # Aggregated Endpoints - Cross-module data for frontend convenience
-    path('dashboard/', aggregated_views.dashboard_data, name='dashboard_data'),
-    path('summary/', aggregated_views.user_summary, name='user_summary'),
-    path('sync-progress/', aggregated_views.sync_progress, name='sync_progress'),
-    path('today/', aggregated_views.today_overview, name='today_overview'),
-    path('weekly-report/', aggregated_views.weekly_report, name='weekly_report'),
-    path('progress-insights/', aggregated_views.progress_insights, name='progress_insights'),
+    # ML Performance and Analytics (basic endpoints available)
+    path('ml/advanced-analytics/<int:period_days>/', views.get_advanced_ml_analytics, name='get_advanced_ml_analytics'),
+    
+    # Aggregated Endpoints - Cross-module data for frontend convenience (TODO: Implement aggregated_views module)
+    # path('dashboard/', aggregated_views.dashboard_data, name='dashboard_data'),
+    # path('summary/', aggregated_views.user_summary, name='user_summary'),
+    # path('sync-progress/', aggregated_views.sync_progress, name='sync_progress'),
+    # path('today/', aggregated_views.today_overview, name='today_overview'),
+    # path('weekly-report/', aggregated_views.weekly_report, name='weekly_report'),
+    # path('progress-insights/', aggregated_views.progress_insights, name='progress_insights'),
 ]

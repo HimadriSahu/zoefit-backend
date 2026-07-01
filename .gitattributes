@@ -1,2 +1,3 @@
-zoefit/nutrition/ml/models/*.pkl filter=lfs diff=lfs merge=lfs -text
-*.pkl filter=lfs diff=lfs merge=lfs -text
+# ML Model files - now ignored instead of using LFS
+# zoefit/nutrition/ml/models/*.pkl filter=lfs diff=lfs merge=lfs -text
+# *.pkl filter=lfs diff=lfs merge=lfs -text

@@ -2,7 +2,13 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import site
 
+# Add virtual environment site-packages to Python path
+venv_path = os.path.join(os.path.dirname(__file__), '..', 'venv')
+site_packages = os.path.join(venv_path, 'Lib', 'site-packages')
+if os.path.exists(site_packages):
+    site.addsitedir(site_packages)
 
 def main():
     """Run administrative tasks."""

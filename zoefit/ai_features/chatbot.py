@@ -1,8 +1,8 @@
 """
-Enhanced AI Chatbot with OpenAI GPT and Google Gemini Integration
+Enhanced AI Chatbot with Groq Integration
 
 This module provides an intelligent chatbot that uses advanced AI models
-(GPT-4 or Gemini) for natural, contextual conversations while maintaining
+(Groq Llama models) for natural, contextual conversations while maintaining
 fallback to rule-based responses for reliability.
 
 The chatbot is designed specifically for fitness advice and can:
@@ -13,7 +13,7 @@ The chatbot is designed specifically for fitness advice and can:
 - Handle general fitness queries
 
 Features:
-- Integration with OpenAI GPT-4 or Google Gemini
+- Integration with Groq Llama models
 - Context-aware responses using user health metrics
 - Fallback to rule-based responses for reliability
 - Rate limiting and cost optimization
@@ -28,29 +28,13 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
 
-# Suppress Google AI deprecation warnings
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.genai")
-
-# Try to import AI libraries
+# Try to import Groq library
 try:
-    import openai
-    OPENAI_AVAILABLE = True
+    from groq import Groq
+    GROQ_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
-    openai = None
-
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    try:
-        import google.genai as genai
-        GEMINI_AVAILABLE = True
-    except ImportError:
-        GEMINI_AVAILABLE = False
-        genai = None
+    GROQ_AVAILABLE = False
+    Groq = None
 
 from django.conf import settings
 from .models import HealthMetrics
@@ -422,14 +406,14 @@ logger = logging.getLogger(__name__)
 
 class EnhancedAIChatbot:
     """
-    Advanced AI chatbot with GPT/Gemini integration for ZoeFit.
+    Advanced AI chatbot with Groq integration for ZoeFit.
     
     This chatbot combines the power of large language models with
     specialized fitness knowledge to provide personalized, helpful
     responses to user queries.
     
     The system uses a hybrid approach:
-    1. First tries to use GPT-4 or Gemini for complex queries
+    1. First tries to use Groq Llama models for complex queries
     2. Falls back to rule-based responses for common questions
     3. Always includes safety disclaimers for medical advice
     4. Personalizes responses based on user health metrics
@@ -440,7 +424,7 @@ class EnhancedAIChatbot:
         Initialize the enhanced chatbot.
         
         Args:
-            ai_provider: "openai", "gemini", or "auto" (auto-selects best available)
+            ai_provider: "groq", or "auto" (auto-selects best available)
         """
         self.ai_provider = ai_provider
         self.intents = self._load_intents()
@@ -449,8 +433,7 @@ class EnhancedAIChatbot:
         self.motivation_quotes = self._load_motivation_quotes()
         
         # Initialize AI clients
-        self.openai_client = None
-        self.gemini_model = None
+        self.groq_client = None
         self._initialize_ai_clients()
         
         # System prompts for different contexts
@@ -460,86 +443,62 @@ class EnhancedAIChatbot:
         """Initialize AI clients based on availability and configuration."""
         import os
         
-        # Initialize OpenAI
-        openai_key = getattr(settings, 'OPENAI_API_KEY', None)
+        # Initialize Groq
+        groq_key = getattr(settings, 'GROQ_API_KEY', None)
         
         # Fallback: try to get from environment directly if settings doesn't have it
-        if not openai_key:
-            openai_key = os.environ.get('OPENAI_API_KEY')
+        if not groq_key:
+            groq_key = os.environ.get('GROQ_API_KEY')
         
         logger.info(f"=== AI CLIENT INITIALIZATION DEBUG ===")
-        logger.info(f"OpenAI library available: {OPENAI_AVAILABLE}")
-        logger.info(f"OpenAI key from settings: {bool(getattr(settings, 'OPENAI_API_KEY', None))}")
-        logger.info(f"OpenAI key from env: {bool(os.environ.get('OPENAI_API_KEY'))}")
-        logger.info(f"OpenAI key present: {bool(openai_key)}")
-        if openai_key:
-            logger.info(f"OpenAI key length: {len(openai_key)}")
-            logger.info(f"OpenAI key format: {openai_key[:10]}...{openai_key[-10:] if len(openai_key) > 20 else 'invalid'}")
-            logger.info(f"OpenAI key starts with 'sk-': {openai_key.startswith('sk-')}")
-            logger.info(f"OpenAI key stripped: {bool(openai_key.strip())}")
+        logger.info(f"Groq library available: {GROQ_AVAILABLE}")
+        logger.info(f"Groq key from settings: {bool(getattr(settings, 'GROQ_API_KEY', None))}")
+        logger.info(f"Groq key from env: {bool(os.environ.get('GROQ_API_KEY'))}")
+        logger.info(f"Groq key present: {bool(groq_key)}")
+        if groq_key:
+            logger.info(f"Groq key length: {len(groq_key)}")
+            logger.info(f"Groq key format: {groq_key[:10]}...{groq_key[-10:] if len(groq_key) > 20 else 'invalid'}")
+            logger.info(f"Groq key starts with 'gsk_': {groq_key.startswith('gsk_')}")
+            logger.info(f"Groq key stripped: {bool(groq_key.strip())}")
+        else:
+            logger.error("❌ GROQ_API_KEY is missing - Please add it to .env file")
+            logger.error("Example: GROQ_API_KEY=gsk_your_actual_api_key_here")
         
-        if OPENAI_AVAILABLE and openai_key and openai_key.strip() and (openai_key.startswith('sk-') or openai_key.startswith('sk-proj-')):
+        if GROQ_AVAILABLE and groq_key and groq_key.strip() and groq_key.startswith('gsk_'):
             try:
-                self.openai_client = openai.OpenAI(api_key=openai_key)
-                logger.info("✅ OpenAI client initialized successfully")
-                # Test the client with a simple request
+                self.groq_client = Groq(api_key=groq_key)
+                logger.info("✅ Groq client initialized successfully")
+                # Test client with a simple request
                 try:
-                    test_response = self.openai_client.chat.completions.create(
-                        model="gpt-3.5-turbo",
+                    test_response = self.groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": "test"}],
                         max_tokens=5
                     )
-                    logger.info("✅ OpenAI client test successful")
+                    logger.info("✅ Groq client test successful")
+                    logger.info("🎉 Groq is now ready for AI responses!")
                 except Exception as test_e:
-                    logger.error(f"❌ OpenAI client test failed: {test_e}")
-                    self.openai_client = None
+                    logger.error(f"❌ Groq client test failed: {test_e}")
+                    logger.error("❌ Groq will not be available - check your API key and network connection")
+                    self.groq_client = None
             except Exception as e:
-                logger.error(f"❌ Failed to initialize OpenAI client: {e}")
-                self.openai_client = None
+                logger.error(f"❌ Failed to initialize Groq client: {e}")
+                self.groq_client = None
         else:
-            if not OPENAI_AVAILABLE:
-                logger.warning("❌ OpenAI not available: library not installed - will use enhanced rule-based responses")
-            elif not openai_key:
-                logger.warning("❌ OpenAI not available: no API key configured - will use enhanced rule-based responses")
-            elif not openai_key.strip():
-                logger.warning("❌ OpenAI not available: API key is empty - will use enhanced rule-based responses")
-            elif not openai_key.startswith('sk-'):
-                logger.warning(f"❌ OpenAI not available: API key has invalid format (starts with: {openai_key[:5] if openai_key else 'none'}) - will use enhanced rule-based responses")
-        
-        # Initialize Gemini
-        gemini_key = getattr(settings, 'GEMINI_API_KEY', None)
-        
-        # Fallback: try to get from environment directly if settings doesn't have it
-        if not gemini_key:
-            gemini_key = os.environ.get('GEMINI_API_KEY')
-        
-        logger.info(f"Gemini library available: {GEMINI_AVAILABLE}")
-        logger.info(f"Gemini key present: {bool(gemini_key)}")
-        if gemini_key:
-            logger.info(f"Gemini key format: {gemini_key[:10]}...{gemini_key[-10:] if len(gemini_key) > 20 else 'invalid'}")
-        
-        if GEMINI_AVAILABLE and gemini_key and gemini_key.strip():
-            try:
-                genai.configure(api_key=gemini_key)
-                model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-pro')
-                self.gemini_model = genai.GenerativeModel(model_name)
-                logger.info(f"✅ Gemini client initialized successfully with model: {model_name}")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize Gemini client: {e}")
-                self.gemini_model = None
-        else:
-            if not GEMINI_AVAILABLE:
-                logger.warning("Gemini not available: library not installed - will use enhanced rule-based responses")
-            elif not gemini_key:
-                logger.warning("Gemini not available: no API key configured - will use enhanced rule-based responses")
-            elif not gemini_key.strip():
-                logger.warning("Gemini not available: API key is empty - will use enhanced rule-based responses")
+            if not GROQ_AVAILABLE:
+                logger.warning("❌ Groq not available: library not installed - will use enhanced rule-based responses")
+            elif not groq_key:
+                logger.warning("❌ Groq not available: no API key configured - will use enhanced rule-based responses")
+            elif not groq_key.strip():
+                logger.warning("❌ Groq not available: API key is empty - will use enhanced rule-based responses")
+            elif not groq_key.startswith('gsk_'):
+                logger.warning(f"❌ Groq not available: API key has invalid format (starts with: {groq_key[:5] if groq_key else 'none'}) - will use enhanced rule-based responses")
         
         # Log final status
-        if not self.openai_client and not self.gemini_model:
+        if not self.groq_client:
             logger.warning("No AI clients available - chatbot will use enhanced rule-based responses with knowledge base")
-        elif self.openai_client or self.gemini_model:
-            logger.info("At least one AI client is available - chatbot will use AI responses")
+        else:
+            logger.info("Groq AI client is available - chatbot will use AI responses")
     
     def process_message(self, message: str, metrics: HealthMetrics = None, conversation_history: List[Dict] = None) -> Dict[str, Any]:
         """
@@ -612,50 +571,43 @@ class EnhancedAIChatbot:
     
     def _generate_ai_response(self, intent: str, message: str, metrics: HealthMetrics = None, conversation_history: List[Dict] = None) -> Optional[Dict[str, Any]]:
         """
-        Generate response using AI model (GPT-4 or Gemini).
+        Generate response using AI model (Groq Llama).
         
         Returns None if AI is unavailable or fails to generate response.
         """
         # Check if we have an AI client available
-        if not self.openai_client and not self.gemini_model:
+        if not self.groq_client:
             logger.warning("No AI clients available - falling back to rule-based responses")
             return None
         
-        logger.info(f"AI clients available - OpenAI: {bool(self.openai_client)}, Gemini: {bool(self.gemini_model)}")
+        logger.info(f"AI client available - Groq: {bool(self.groq_client)}")
         logger.info(f"AI provider preference: {self.ai_provider}")
         
         # Build enhanced context-aware prompt
         context = self._build_context(intent, message, metrics, conversation_history)
         
-        # Try OpenAI first if available
-        if self.openai_client and (self.ai_provider in ['openai', 'auto']):
+        # Try Groq if available
+        if self.groq_client and (self.ai_provider in ['groq', 'auto']):
             try:
-                return self._call_openai(context, intent)
+                return self._call_groq(context, intent)
             except Exception as e:
-                logger.error(f"OpenAI API call failed: {e}")
-        
-        # Try Gemini if OpenAI failed or not preferred
-        if self.gemini_model and (self.ai_provider in ['gemini', 'auto']):
-            try:
-                return self._call_gemini(context, intent)
-            except Exception as e:
-                logger.error(f"Gemini API call failed: {e}")
+                logger.error(f"Groq API call failed: {e}")
         
         logger.warning("All AI providers failed - falling back to rule-based responses")
         return None
     
-    def _call_openai(self, context: str, intent: str) -> Dict[str, Any]:
-        """Call OpenAI API for response generation."""
+    def _call_groq(self, context: str, intent: str) -> Dict[str, Any]:
+        """Call Groq API for response generation."""
         try:
-            model_name = getattr(settings, 'OPENAI_MODEL', 'gpt-4o')
+            model_name = getattr(settings, 'GROQ_MODEL', 'llama-3.3-70b-versatile')
             max_tokens = getattr(settings, 'AI_CHAT_MAX_TOKENS', 500)
             temperature = getattr(settings, 'AI_CHAT_TEMPERATURE', 0.8)
             
-            logger.info(f"Calling OpenAI API with model: {model_name}")
+            logger.info(f"Calling Groq API with model: {model_name}")
             logger.info(f"Context length: {len(context)} characters")
             logger.info(f"System prompt length: {len(self.system_prompts.get(intent, self.system_prompts['default']))} characters")
             
-            response = self.openai_client.chat.completions.create(
+            response = self.groq_client.chat.completions.create(
                 model=model_name,
                 messages=[
                     {"role": "system", "content": self.system_prompts.get(intent, self.system_prompts['default'])},
@@ -669,7 +621,7 @@ class EnhancedAIChatbot:
             )
             
             response_text = response.choices[0].message.content.strip()
-            logger.info(f"OpenAI response received successfully: {response_text[:100]}...")
+            logger.info(f"Groq response received successfully: {response_text[:100]}...")
             
             # Add safety disclaimer for medical questions
             if intent == 'medical_question':
@@ -678,65 +630,20 @@ class EnhancedAIChatbot:
             return {
                 'text': response_text,
                 'confidence': 0.9,
-                'provider': 'openai'
-            }
-            
-        except openai.AuthenticationError as e:
-            logger.error(f"OpenAI authentication error: {e}")
-            raise Exception("OpenAI API key is invalid or expired")
-        except openai.RateLimitError as e:
-            logger.error(f"OpenAI rate limit error: {e}")
-            raise Exception("OpenAI API rate limit exceeded")
-        except openai.APIError as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise Exception(f"OpenAI API error: {e}")
-        except Exception as e:
-            logger.error(f"Unexpected OpenAI error: {e}")
-            raise
-    
-    def _call_gemini(self, context: str, intent: str) -> Dict[str, Any]:
-        """Call Google Gemini API for response generation."""
-        try:
-            max_tokens = getattr(settings, 'AI_CHAT_MAX_TOKENS', 500)
-            temperature = getattr(settings, 'AI_CHAT_TEMPERATURE', 0.8)
-            
-            full_prompt = f"{self.system_prompts.get(intent, self.system_prompts['default'])}\n\nUser: {context}"
-            
-            logger.info("Calling Gemini API")
-            
-            response = self.gemini_model.generate_content(
-                full_prompt,
-                generation_config={
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens,
-                    "top_p": 1,
-                }
-            )
-            
-            response_text = response.text.strip()
-            logger.info("Gemini response received successfully")
-            
-            # Add safety disclaimer for medical questions
-            if intent == 'medical_question':
-                response_text += "\n\n⚠️ Please consult with a healthcare professional for personalized medical advice."
-            
-            return {
-                'text': response_text,
-                'confidence': 0.9,
-                'provider': 'gemini'
+                'provider': 'groq'
             }
             
         except Exception as e:
             error_str = str(e).lower()
-            if "permission" in error_str or "forbidden" in error_str or "api key" in error_str:
-                logger.error(f"Gemini authentication error: {e}")
-                raise Exception("Gemini API key is invalid or missing")
-            elif "quota" in error_str or "rate" in error_str:
-                logger.error(f"Gemini rate limit error: {e}")
-                raise Exception("Gemini API quota exceeded")
+            if "unauthorized" in error_str or "authentication" in error_str or "api key" in error_str:
+                logger.error(f"Groq authentication error: {e}")
+                raise Exception("Groq API key is invalid or missing")
+            elif "rate" in error_str or "quota" in error_str or "limit" in error_str:
+                logger.error(f"Groq rate limit error: {e}")
+                raise Exception("Groq API rate limit exceeded")
             else:
-                logger.error(f"Gemini API error: {e}")
-                raise Exception(f"Gemini API error: {e}")
+                logger.error(f"Groq API error: {e}")
+                raise Exception(f"Groq API error: {e}")
     
     def _build_context(self, intent: str, message: str, metrics: HealthMetrics = None, conversation_history: List[Dict] = None) -> str:
         """Build context-aware prompt with user information, conversation history, and fitness knowledge base."""

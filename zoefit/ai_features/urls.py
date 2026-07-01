@@ -45,6 +45,7 @@ urlpatterns = [
     
     # Progress Tracking and Analytics
     path('progress/', views.get_progress_tracking, name='get_progress_tracking'),
+    path('progress/create/', views.create_progress_entry, name='create_progress_entry'),
     path('predict-progress/', views.predict_progress, name='predict_progress'),
     path('insights/', views.get_ai_insights, name='get_ai_insights'),
     

@@ -465,7 +465,7 @@ def ai_chat(request):
         ).order_by('-created_at')[:context_window].values('user_message', 'ai_response', 'intent_detected', 'confidence_score'))
         
         # Process message with enhanced AI chatbot
-        ai_provider = getattr(settings, 'AI_PROVIDER_PREFERENCE', 'openai')
+        ai_provider = getattr(settings, 'AI_PROVIDER_PREFERENCE', 'groq')
         chatbot = EnhancedAIChatbot(ai_provider=ai_provider)
         response_data = chatbot.process_message(message, metrics, conversation_history)
         
@@ -565,6 +565,54 @@ def get_chat_history(request):
     except Exception as e:
         return Response({
             'error': f'Something went wrong while updating your profile: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_progress_entry(request):
+    """
+    Create a new progress entry for the user.
+    """
+    try:
+        data = request.data
+        
+        # Create progress tracking entry
+        progress = ProgressTracking.objects.create(
+            user=request.user,
+            weight=data.get('weight'),
+            body_fat_percentage=data.get('bodyFat'),
+            muscle_mass=data.get('muscleMass'),
+            # Add other fields as needed
+        )
+        
+        # Update user's health metrics if weight is provided
+        if data.get('weight'):
+            try:
+                health_metrics = request.user.health_metrics
+                health_metrics.weight = data.get('weight')
+                health_metrics.save()
+            except HealthMetrics.DoesNotExist:
+                # Create health metrics if doesn't exist
+                HealthMetrics.objects.create(
+                    user=request.user,
+                    weight=data.get('weight'),
+                    height=170,  # Default height
+                    bmi=0,
+                    fitness_goal='maintenance',
+                    activity_level='moderate'
+                )
+        
+        return Response({
+            'message': 'Progress entry created successfully',
+            'progress_id': progress.id
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error creating progress entry: {str(e)}")
+        return Response({
+            'error': 'Failed to create progress entry',
+            'details': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -953,7 +1001,7 @@ def get_advanced_ml_analytics(request, period_days):
             insights = ml_nutrition_engine._generate_predictive_insights(metrics, date.today())
             
             # Get adaptation status
-            recent_feedback = feedbacks.order_by('-created_at')[:10]
+            recent_feedback = feedbacks.order_by('-timestamp')[:10]
             adaptation_active = len(recent_feedback) >= 10
             
             adaptation_factor = 0

@@ -215,16 +215,12 @@ SIMPLE_JWT = {
 }
 
 # AI Integration Settings
-# OpenAI Configuration
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')  # Upgraded to full GPT-4o for better performance
+# Groq Configuration
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama3-70b-8192')  # High-performance Llama model
 
-# Google Gemini Configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-pro')
-
-# AI Provider Preference (openai, gemini, or auto)
-AI_PROVIDER_PREFERENCE = os.environ.get('AI_PROVIDER_PREFERENCE', 'openai')  # Default to OpenAI for better quality
+# AI Provider Preference (groq, or auto)
+AI_PROVIDER_PREFERENCE = os.environ.get('AI_PROVIDER_PREFERENCE', 'groq')  # Default to Groq for fast responses
 
 # Enhanced AI Chat Settings
 AI_CHAT_MAX_TOKENS = int(os.environ.get('AI_CHAT_MAX_TOKENS', '500'))  # Increased for more detailed responses

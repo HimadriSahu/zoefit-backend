@@ -77,35 +77,49 @@ class AIRecommendationEngine:
     def generate_meal_plan(self, metrics: HealthMetrics, target_date: date) -> Dict[str, Any]:
         """
         Generate personalized meal plan based on user metrics and preferences.
-        Uses ML models when available, falls back to rule-based approach.
+        Prioritizes ML models when available, falls back to rule-based approach only when necessary.
         """
         try:
-            # Try ML-based approach first
+            # Always try ML-based approach first - it's our primary method
             if ML_AVAILABLE and hasattr(ml_nutrition_engine, 'generate_ml_meal_plan'):
                 try:
+                    print("🤖 Attempting ML-based meal plan generation...")
                     ml_plan = ml_nutrition_engine.generate_ml_meal_plan(metrics, target_date)
                     
-                    # Add metadata about the approach used
-                    ml_plan['approach'] = 'ml_based'
-                    ml_plan['model_confidence'] = ml_plan.get('confidence_score', 0.5)
-                    
-                    return ml_plan
-                    
+                    # Validate ML plan has required fields
+                    if ml_plan and 'meals' in ml_plan and 'total_calories' in ml_plan:
+                        # Add metadata about the approach used
+                        ml_plan['approach'] = ml_plan.get('approach', 'ml_based')
+                        ml_plan['model_confidence'] = ml_plan.get('confidence_score', 0.7)
+                        ml_plan['generation_method'] = 'ml_primary'
+                        
+                        print(f"✅ ML meal plan generated successfully using approach: {ml_plan['approach']}")
+                        return ml_plan
+                    else:
+                        print("⚠️ ML plan incomplete, falling back to rule-based...")
+                        
                 except Exception as ml_error:
-                    print(f"ML meal plan generation failed: {ml_error}")
-                    print("Falling back to rule-based approach...")
+                    print(f"❌ ML meal plan generation failed: {ml_error}")
+                    print("🔄 Falling back to rule-based approach...")
+            else:
+                print("⚠️ ML engine not available, using rule-based approach...")
             
-            # Rule-based fallback
+            # Rule-based fallback (only when ML fails)
+            print("📋 Generating rule-based meal plan...")
             rule_plan = self._generate_rule_based_meal_plan(metrics, target_date)
             rule_plan['approach'] = 'rule_based'
-            rule_plan['model_confidence'] = 0.5  # Default confidence for rule-based
+            rule_plan['model_confidence'] = 0.3  # Lower confidence for rule-based
+            rule_plan['generation_method'] = 'rule_fallback'
+            rule_plan['ml_unavailable'] = not ML_AVAILABLE
+            
             return rule_plan
             
         except Exception as e:
-            print(f"Error in meal plan generation: {e}")
+            print(f"💥 Critical error in meal plan generation: {e}")
             emergency_plan = self._generate_emergency_fallback_plan(metrics, target_date)
             emergency_plan['approach'] = 'emergency_fallback'
             emergency_plan['model_confidence'] = 0.1
+            emergency_plan['generation_method'] = 'emergency'
             return emergency_plan
     
     def _calculate_macro_split(self, fitness_goal: str) -> Dict[str, float]:
@@ -902,6 +916,9 @@ class AIRecommendationEngine:
             
             # Get dietary preferences and restrictions
             preferences = metrics.dietary_preferences or {}
+            # Convert preferences to dict if it's a list
+            if isinstance(preferences, list):
+                preferences = {pref: True for pref in preferences}
             allergies = metrics.allergies or []
             medical_conditions = metrics.medical_conditions or []
             
@@ -955,8 +972,17 @@ class AIRecommendationEngine:
             # Basic calorie calculation
             weight = metrics.weight or 70
             height = metrics.height or 170
-            age = metrics.age or 30
-            gender = metrics.gender or 'male'
+            
+            # Calculate age from date_of_birth or use default
+            age = 30  # Default age
+            if hasattr(metrics.user, 'date_of_birth') and metrics.user.date_of_birth:
+                from datetime import date
+                today = date.today()
+                birth_date = metrics.user.date_of_birth
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+            
+            # Use default gender since not available in HealthMetrics
+            gender = 'male'
             
             # Simple BMR calculation
             if gender == 'male':

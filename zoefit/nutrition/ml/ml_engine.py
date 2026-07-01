@@ -47,48 +47,94 @@ class MLNutritionEngine:
         self._load_models()
     
     def _load_models(self):
-        """Load pre-trained models from disk"""
+        """Load pre-trained models from disk with enhanced error handling"""
         try:
             model_dir = os.path.join(settings.BASE_DIR, 'nutrition', 'ml', 'models')
+            print(f"🔍 Loading ML models from: {model_dir}")
             
-            # Load meal recommendation model
+            # Check if model directory exists
+            if not os.path.exists(model_dir):
+                print(f"⚠️ Model directory not found: {model_dir}")
+                self._initialize_fallback_models()
+                return
+            
+            # Load meal recommendation model (optional)
             meal_model_path = os.path.join(model_dir, 'meal_recommendation_model.pkl')
             if os.path.exists(meal_model_path):
-                with open(meal_model_path, 'rb') as f:
-                    self.models['meal_recommendation'] = pickle.load(f)
+                try:
+                    with open(meal_model_path, 'rb') as f:
+                        self.models['meal_recommendation'] = pickle.load(f)
+                    print("✅ Meal recommendation model loaded successfully")
+                except Exception as meal_error:
+                    print(f"⚠️ Failed to load meal recommendation model: {meal_error}")
+                    print("🔄 Will use macro-based approach instead")
+            else:
+                print("⚠️ Meal recommendation model not found, will use macro-based approach")
             
-            # Load macro prediction model
+            # Load macro prediction model (required)
             macro_model_path = os.path.join(model_dir, 'macro_prediction_model.pkl')
             if os.path.exists(macro_model_path):
-                with open(macro_model_path, 'rb') as f:
-                    self.models['macro_prediction'] = pickle.load(f)
+                try:
+                    with open(macro_model_path, 'rb') as f:
+                        self.models['macro_prediction'] = pickle.load(f)
+                    print("✅ Macro prediction model loaded successfully")
+                except Exception as macro_error:
+                    print(f"❌ Failed to load macro prediction model: {macro_error}")
+                    raise Exception("Critical: Macro prediction model is required")
+            else:
+                print("❌ Macro prediction model not found - this is required")
+                raise Exception("Critical: Macro prediction model is required")
             
-            # Load scalers
+            # Load feature scaler (required)
             scaler_path = os.path.join(model_dir, 'feature_scaler.pkl')
             if os.path.exists(scaler_path):
-                with open(scaler_path, 'rb') as f:
-                    self.scalers['features'] = pickle.load(f)
+                try:
+                    with open(scaler_path, 'rb') as f:
+                        self.scalers['features'] = pickle.load(f)
+                    print("✅ Feature scaler loaded successfully")
+                except Exception as scaler_error:
+                    print(f"❌ Failed to load feature scaler: {scaler_error}")
+                    raise Exception("Critical: Feature scaler is required")
+            else:
+                print("❌ Feature scaler not found - this is required")
+                raise Exception("Critical: Feature scaler is required")
             
-            # Load encoders
+            # Load label encoders (optional)
             encoder_path = os.path.join(model_dir, 'label_encoders.pkl')
             if os.path.exists(encoder_path):
-                with open(encoder_path, 'rb') as f:
-                    self.encoders = pickle.load(f)
+                try:
+                    with open(encoder_path, 'rb') as f:
+                        self.encoders = pickle.load(f)
+                    print("✅ Label encoders loaded successfully")
+                except Exception as encoder_error:
+                    print(f"⚠️ Failed to load label encoders: {encoder_error}")
+                    self.encoders = {}
+            else:
+                print("⚠️ Label encoders not found, using empty encoders")
+                self.encoders = {}
+                    
+            print("🎉 ML model loading completed successfully")
                     
         except Exception as e:
-            print(f"Error loading models: {e}")
+            print(f"💥 Critical error loading models: {e}")
+            print("🔄 Initializing fallback models...")
             self._initialize_fallback_models()
     
     def _initialize_fallback_models(self):
         """Initialize fallback models if trained models are not available"""
-        self.models['meal_recommendation'] = RandomForestRegressor(n_estimators=100, random_state=42)
-        self.models['macro_prediction'] = GradientBoostingRegressor(n_estimators=100, random_state=42)
-        self.scalers['features'] = StandardScaler()
+        # Ensure models dict exists
+        if 'meal_recommendation' not in self.models:
+            self.models['meal_recommendation'] = RandomForestRegressor(n_estimators=100, random_state=42)
+        if 'macro_prediction' not in self.models:
+            self.models['macro_prediction'] = GradientBoostingRegressor(n_estimators=100, random_state=42)
+        if 'features' not in self.scalers:
+            self.scalers['features'] = StandardScaler()
         self.encoders = {}
     
     def generate_ml_meal_plan(self, metrics: HealthMetrics, target_date: date) -> Dict[str, Any]:
         """
         Generate meal plan using trained ML models with real-time adaptation.
+        Prioritizes ML approach and can work with just macro prediction model.
         """
         try:
             # Extract enhanced features from user metrics
@@ -104,16 +150,29 @@ class MLNutritionEngine:
             # Scale features (features is already 2D)
             features_scaled = self.scalers['features'].transform(features)
             
-            # Predict macros
+            # Predict macros (this model should always be available)
             macro_predictions = self.models['macro_prediction'].predict(features_scaled)[0]
             
-            # Predict meal-specific macros
-            meal_predictions = self.models['meal_recommendation'].predict(features_scaled)[0]
-            
-            # Generate meal plan from predictions
-            meal_plan = self._generate_meal_plan_from_predictions(
-                macro_predictions, meal_predictions, metrics
-            )
+            # Try to use meal recommendation model if available, otherwise use macro-based distribution
+            if 'meal_recommendation' in self.models and self.models['meal_recommendation'] is not None:
+                try:
+                    # Predict meal-specific macros
+                    meal_predictions = self.models['meal_recommendation'].predict(features_scaled)[0]
+                    # Generate meal plan from both predictions
+                    meal_plan = self._generate_meal_plan_from_predictions(
+                        macro_predictions, meal_predictions, metrics
+                    )
+                    approach = 'ml_based_adaptive' if adapted_features else 'ml_based'
+                except Exception as meal_error:
+                    print(f"Meal recommendation model failed, using macro-based approach: {meal_error}")
+                    # Fall back to macro-based meal distribution
+                    meal_plan = self._generate_meal_plan_from_macros_only(macro_predictions, metrics)
+                    approach = 'ml_based_macro_adaptive' if adapted_features else 'ml_based_macro'
+            else:
+                # Use only macro prediction model for meal distribution
+                print("Meal recommendation model not available, using macro-based approach")
+                meal_plan = self._generate_meal_plan_from_macros_only(macro_predictions, metrics)
+                approach = 'ml_based_macro_adaptive' if adapted_features else 'ml_based_macro'
             
             # Calculate confidence score
             confidence = self._calculate_prediction_confidence(features_scaled)
@@ -133,7 +192,7 @@ class MLNutritionEngine:
                 'confidence_score': confidence,
                 'prediction_date': target_date.isoformat(),
                 'model_version': model_version,
-                'approach': 'ml_based_adaptive' if adapted_features else 'ml_based',
+                'approach': approach,
                 'predictive_insights': insights,
                 'adaptation_applied': bool(adapted_features)
             }
@@ -853,6 +912,128 @@ class MLNutritionEngine:
             print(f"Error generating single meal: {e}")
             return self._generate_fallback_meal(meal_type, target_calories)
     
+    def _generate_single_ml_meal_with_macros(self, meal_type: str, target_calories: float,
+                                            target_protein: float, target_carbs: float, target_fat: float,
+                                            foods: List[FoodDatabase], user_metrics: HealthMetrics) -> Dict[str, Any]:
+        """Generate a single meal using specific macro targets"""
+        try:
+            selected_foods = []
+            remaining_calories = target_calories
+            remaining_protein = target_protein
+            remaining_carbs = target_carbs
+            remaining_fat = target_fat
+            
+            # Smart food selection based on meal type and macros
+            if meal_type == 'breakfast':
+                priority_categories = ['protein', 'carb', 'healthy_fat', 'fruit']
+            elif meal_type == 'lunch':
+                priority_categories = ['protein', 'carb', 'vegetable', 'healthy_fat']
+            elif meal_type == 'dinner':
+                priority_categories = ['protein', 'vegetable', 'carb', 'healthy_fat']
+            else:  # snacks
+                priority_categories = ['protein', 'fruit', 'healthy_fat']
+            
+            # Select foods to meet macro targets
+            for category in priority_categories:
+                if remaining_calories <= 0:
+                    break
+                    
+                # Calculate target calories for this category based on remaining macros
+                category_target_calories = min(
+                    remaining_calories,
+                    (remaining_protein * 4) if category == 'protein' else
+                    (remaining_carbs * 4) if category == 'carb' else
+                    (remaining_fat * 9) if category == 'healthy_fat' else
+                    remaining_calories * 0.2  # for vegetables and fruits
+                )
+                
+                # Find foods in this category
+                category_foods = [f for f in foods if any(cat in f.category.lower() for cat in category.split('_'))]
+                
+                if category_foods and category_target_calories > 50:
+                    # Select best food from this category
+                    best_food = self._select_best_food_for_category(category_foods, category, category_target_calories)
+                    
+                    if best_food:
+                        # Calculate appropriate portion
+                        calories_per_100g = best_food.calories_per_100g
+                        portion_g = min(300, (category_target_calories / calories_per_100g) * 100)
+                        
+                        food_macros = {
+                            'calories': round(calories_per_100g * portion_g / 100),
+                            'protein': round(best_food.protein_per_100g * portion_g / 100, 1),
+                            'carbs': round(best_food.carbs_per_100g * portion_g / 100, 1),
+                            'fat': round(best_food.fat_per_100g * portion_g / 100, 1)
+                        }
+                        
+                        selected_foods.append({
+                            'name': best_food.name,
+                            'quantity': f"{round(portion_g)}g",
+                            **food_macros
+                        })
+                        
+                        # Update remaining macros
+                        remaining_calories -= food_macros['calories']
+                        remaining_protein -= food_macros['protein']
+                        remaining_carbs -= food_macros['carbs']
+                        remaining_fat -= food_macros['fat']
+            
+            return {
+                'name': f"ML Macro-Optimized {meal_type.title()}",
+                'foods': selected_foods,
+                'estimated_calories': target_calories - remaining_calories,
+                'target_protein': target_protein,
+                'target_carbs': target_carbs,
+                'target_fat': target_fat,
+                'actual_protein': target_protein - remaining_protein,
+                'actual_carbs': target_carbs - remaining_carbs,
+                'actual_fat': target_fat - remaining_fat,
+                'prep_time': np.random.randint(15, 45),
+                'difficulty': np.random.choice(['easy', 'medium', 'hard'], p=[0.4, 0.4, 0.2])
+            }
+            
+        except Exception as e:
+            print(f"Error generating single meal with macros: {e}")
+            return self._generate_fallback_meal(meal_type, target_calories)
+    
+    def _select_best_food_for_category(self, foods: List[FoodDatabase], category: str, target_calories: float) -> FoodDatabase:
+        """Select the best food for a given category and calorie target"""
+        try:
+            # Score foods based on category and nutritional profile
+            scored_foods = []
+            for food in foods:
+                score = 0
+                
+                # Category matching
+                if category == 'protein':
+                    score += food.protein_per_100g / 30  # Normalize protein content
+                elif category == 'carb':
+                    score += food.carbs_per_100g / 50  # Normalize carb content
+                elif category == 'healthy_fat':
+                    score += food.fat_per_100g / 20  # Normalize fat content
+                elif category in ['vegetable', 'fruit']:
+                    score += 10  # Base score for veggies/fruits
+                    score -= food.fat_per_100g / 10  # Prefer lower fat options
+                
+                # Calorie appropriateness
+                calories_per_100g = food.calories_per_100g
+                if target_calories > 0:
+                    calorie_ratio = min(calories_per_100g / target_calories, 1.0)
+                    score += calorie_ratio * 5
+                
+                scored_foods.append((score, food))
+            
+            # Select the highest scoring food
+            if scored_foods:
+                scored_foods.sort(key=lambda x: x[0], reverse=True)
+                return scored_foods[0][1]
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error selecting best food: {e}")
+            return foods[0] if foods else None
+    
     def _encode_meal_type(self, meal_type: str) -> float:
         """Encode meal type to numerical value"""
         meal_mapping = {
@@ -1543,6 +1724,82 @@ class MLNutritionEngine:
             
         except Exception as e:
             print(f"Error generating meal plan from predictions: {e}")
+            return self._generate_fallback_meals({
+                'calories': macro_predictions[0],
+                'protein': macro_predictions[1],
+                'carbs': macro_predictions[2],
+                'fat': macro_predictions[3]
+            })
+    
+    def _generate_meal_plan_from_macros_only(self, macro_predictions: np.ndarray, 
+                                           metrics: HealthMetrics) -> List[Dict[str, Any]]:
+        """
+        Generate meal plan using only macro predictions with intelligent distribution.
+        This method is used when meal recommendation model is not available.
+        """
+        try:
+            # Get available foods
+            foods = list(FoodDatabase.objects.all())
+            
+            if not foods:
+                return self._generate_fallback_meals({
+                    'calories': macro_predictions[0],
+                    'protein': macro_predictions[1],
+                    'carbs': macro_predictions[2],
+                    'fat': macro_predictions[3]
+                })
+            
+            # Filter foods based on preferences
+            filtered_foods = self._filter_foods(foods, metrics)
+            
+            # Generate meals with smart macro distribution
+            meals = []
+            meal_types = ['breakfast', 'lunch', 'dinner', 'snacks']
+            
+            # Smart calorie distribution based on fitness goal
+            total_calories = macro_predictions[0]
+            if metrics.fitness_goal == 'weight_loss':
+                calorie_distribution = [0.30, 0.40, 0.25, 0.05]  # Higher protein breakfast, smaller snacks
+            elif metrics.fitness_goal == 'muscle_gain':
+                calorie_distribution = [0.25, 0.35, 0.30, 0.10]  # Balanced with protein focus
+            else:  # maintenance
+                calorie_distribution = [0.25, 0.35, 0.30, 0.10]  # Standard distribution
+            
+            # Get seasonal insights
+            seasonal_insights = self._get_seasonal_insights()
+            
+            for i, meal_type in enumerate(meal_types):
+                base_calories = total_calories * calorie_distribution[i]
+                
+                # Apply seasonal adjustments
+                calorie_adjustment = seasonal_insights.get('calorie_adjustment', 0)
+                adjusted_calories = base_calories + calorie_adjustment
+                
+                # Calculate target macros for this meal
+                meal_protein = macro_predictions[1] * calorie_distribution[i]
+                meal_carbs = macro_predictions[2] * calorie_distribution[i]
+                meal_fat = macro_predictions[3] * calorie_distribution[i]
+                
+                meal = self._generate_single_ml_meal_with_macros(
+                    meal_type, adjusted_calories, meal_protein, meal_carbs, meal_fat, 
+                    filtered_foods, metrics
+                )
+                
+                # Add seasonal food recommendations
+                seasonal_foods = seasonal_insights.get('seasonal_foods', [])
+                if seasonal_foods and meal['foods']:
+                    for food_item in meal['foods']:
+                        for seasonal_food in seasonal_foods:
+                            if seasonal_food.replace('_', ' ') in food_item['name'].lower():
+                                food_item['seasonal'] = True
+                                break
+                
+                meals.append(meal)
+            
+            return meals
+            
+        except Exception as e:
+            print(f"Error generating meal plan from macros only: {e}")
             return self._generate_fallback_meals({
                 'calories': macro_predictions[0],
                 'protein': macro_predictions[1],
